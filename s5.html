@@ -321,7 +321,7 @@
 
         <label>
           Tamaño de letra
-          <input id="fontSize" type="number" min="12" max="72" value="40" />
+          <input id="fontSize" type="number" min="12" max="72" value="24" />
         </label>
 
         <label>
@@ -331,6 +331,8 @@
             <option value="on">On</option>
           </select>
         </label>
+
+        <button id="applyFormatBtn">Aplicar formato</button>
 
         <label>
           Ancho de página
@@ -369,7 +371,7 @@
         <label>
           Velocidad TTS español
           <select id="ttsRate">
-            <option value="0.6">0.6x</option>
+          <option value="0.6">0.6x</option>
             <option value="0.75">0.75x</option>
             <option value="0.9">0.9x</option>
             <option value="1" selected>1x</option>
@@ -474,6 +476,7 @@
       part3Words: document.querySelector('#part3Words'),
       fontSize: document.querySelector('#fontSize'),
       synesthesiaMode: document.querySelector('#synesthesiaMode'),
+      applyFormatBtn: document.querySelector('#applyFormatBtn'),
       bookWidth: document.querySelector('#bookWidth'),
       loadBtn: document.querySelector('#loadBtn'),
       playBtn: document.querySelector('#playBtn'),
@@ -507,6 +510,8 @@
     let isOnBreak = false;
     let totalWordCount = 0;
     let saveScrollTimer = null;
+    let cssApplyTimer = null;
+    let formatPending = false;
     let isTtsPlaying = false;
     let currentTtsUtterance = null;
     let spanishVoice = null;
@@ -587,6 +592,47 @@
     function safeJsonParse(value, fallback) {
       try { return value ? JSON.parse(value) : fallback; }
       catch (err) { return fallback; }
+    }
+
+    function debounceTimer(timerName, callback, delay = 500) {
+      clearTimeout(window[timerName]);
+      window[timerName] = setTimeout(callback, delay);
+    }
+
+    function applyCssOnly() {
+      const cfg = getConfig();
+      document.documentElement.style.setProperty('--font-size', cfg.fontSize + 'px');
+      document.documentElement.style.setProperty('--book-width', cfg.bookWidth + 'px');
+      saveSettings();
+      updateVisibleWordStatus(' | CSS aplicado');
+
+      if (isPlaying && !isOnBreak) scheduleNextAutoScroll();
+    }
+
+    function scheduleCssOnlyApply() {
+      clearTimeout(cssApplyTimer);
+      cssApplyTimer = setTimeout(applyCssOnly, 500);
+    }
+
+    function markFormatPending() {
+      formatPending = true;
+      saveSettings();
+      els.applyFormatBtn.textContent = 'Aplicar formato *';
+      updateVisibleWordStatus(' | formato pendiente');
+    }
+
+    function applyFormatChanges() {
+      if (!originalUnits.length) {
+        saveSettings();
+        return;
+      }
+
+      saveReadingPositionNow();
+      renderUnits(originalUnits);
+      restoreReadingPosition();
+
+      formatPending = false;
+      els.applyFormatBtn.textContent = 'Aplicar formato';
     }
 
     function cleanBookName(value) {
@@ -1605,6 +1651,9 @@
 
       renderBookmarks();
       updateVisibleWordStatus('');
+
+      formatPending = false;
+      if (els.applyFormatBtn) els.applyFormatBtn.textContent = 'Aplicar formato';
     }
 
     async function loadBook() {
@@ -1650,6 +1699,7 @@
     }
 
     els.loadBtn.addEventListener('click', loadBook);
+    els.applyFormatBtn.addEventListener('click', applyFormatChanges);
     els.bookSelect.addEventListener('change', () => {
       els.filePath.value = els.bookSelect.value;
       saveSettings();
@@ -1740,17 +1790,15 @@
       els.part2Words,
       els.part3Lines,
       els.part3Words,
-      els.fontSize,
-      els.bookWidth,
       els.synesthesiaMode
     ]) {
-      input.addEventListener('input', () => {
-        saveSettings();
-        if (originalUnits.length) {
-          renderUnits(originalUnits);
-          restoreReadingPosition();
-        }
-      });
+      input.addEventListener('input', markFormatPending);
+      input.addEventListener('change', markFormatPending);
+    }
+
+    for (const input of [els.fontSize, els.bookWidth]) {
+      input.addEventListener('input', scheduleCssOnlyApply);
+      input.addEventListener('change', scheduleCssOnlyApply);
     }
 
     els.filePath.addEventListener('change', () => {
