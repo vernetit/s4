@@ -1,0 +1,1111 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Lector escalonado</title>
+
+  <style>
+    :root {
+      --bg: #111;
+      --panel: #1b1b1b;
+      --text: #eee;
+      --muted: #aaa;
+      --accent: #7dd3fc;
+      --line: #333;
+      --book-width: 980px;
+      --font-size: 24px;
+      --gap-y: 0.35em;
+      --chunk-gap: 1.2em;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    .app {
+      min-height: 100vh;
+      display: grid;
+      grid-template-rows: auto 1fr;
+    }
+
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      background: rgba(17, 17, 17, 0.94);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--line);
+      padding: 12px 16px;
+    }
+
+    body.reading-mode header {
+      display: none;
+    }
+
+    .floating-panel {
+      position: fixed;
+      top: 12px;
+      right: 12px;
+      z-index: 50;
+      display: none;
+      align-items: center;
+      gap: 10px;
+      border: 1px solid #555;
+      border-radius: 999px;
+      padding: 8px 10px 8px 14px;
+      background: rgba(20, 20, 20, 0.92);
+      color: #fff;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+    }
+
+    body.reading-mode .floating-panel {
+      display: flex;
+    }
+
+    .floating-stats {
+      font-size: 14px;
+      color: #ddd;
+      white-space: nowrap;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .floating-stop {
+      border-radius: 999px;
+      padding: 8px 12px;
+      font-weight: 800;
+    }
+
+    .controls {
+      max-width: 1180px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
+      gap: 10px;
+      align-items: end;
+    }
+
+    label {
+      display: grid;
+      gap: 4px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    input, select, button {
+      font: inherit;
+      border: 1px solid #444;
+      border-radius: 10px;
+      padding: 9px 10px;
+      background: var(--panel);
+      color: var(--text);
+    }
+
+    button {
+      cursor: pointer;
+      background: #222;
+      color: var(--accent);
+      font-weight: 700;
+    }
+
+    button:hover { filter: brightness(1.15); }
+
+    main {
+      width: min(var(--book-width), calc(100vw - 24px));
+      margin: 28px auto;
+      font-size: var(--font-size);
+      line-height: 1.35;
+    }
+
+    .status {
+      color: var(--muted);
+      font-size: 15px;
+      margin-bottom: 18px;
+    }
+
+    .book {
+      display: grid;
+      gap: var(--chunk-gap);
+      padding-bottom: 80px;
+    }
+
+    .block {
+      display: grid;
+      grid-template-columns: max-content max-content max-content max-content;
+      column-gap: 0;
+      row-gap: var(--gap-y);
+      align-items: start;
+      width: fit-content;
+      max-width: 100%;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+      padding-bottom: 0.25em;
+    }
+
+    .part1-prefix {
+      grid-column: 1 / 2;
+      grid-row: 1;
+      white-space: nowrap;
+    }
+
+    .part1-prefix.has-anchor {
+      padding-right: 1ch;
+    }
+
+    .part1-anchor {
+      grid-column: 2 / 3;
+      grid-row: 1;
+      white-space: nowrap;
+    }
+
+    .part2-prefix {
+      grid-column: 2 / 4;
+      grid-row: 2;
+      white-space: nowrap;
+    }
+
+    .part2-prefix.has-anchor {
+      padding-right: 1ch;
+    }
+
+    .part2-anchor {
+      grid-column: 4 / 5;
+      grid-row: 2;
+      white-space: nowrap;
+    }
+
+    .part3 {
+      grid-column: 4 / 5;
+      white-space: nowrap;
+    }
+
+    .part3.first {
+      grid-row: 3;
+    }
+
+    .empty {
+      padding-left: 0;
+    }
+
+    .paragraph-break {
+      height: 1.2em;
+    }
+
+    .fallback {
+      border: 1px dashed #555;
+      border-radius: 14px;
+      padding: 16px;
+      color: var(--muted);
+      background: #151515;
+    }
+
+    .pause-pill {
+      position: fixed;
+      left: 50%;
+      top: 18px;
+      transform: translateX(-50%);
+      z-index: 80;
+      display: none;
+      border: 1px solid #777;
+      border-radius: 999px;
+      padding: 10px 18px;
+      background: rgba(0, 0, 0, 0.82);
+      color: #fff;
+      font-size: 15px;
+      font-weight: 800;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+    }
+
+    body.reading-mode .pause-pill.show {
+      display: block;
+    }
+
+    @media (max-width: 680px) {
+      :root { --font-size: 20px; }
+      .controls { grid-template-columns: 1fr 1fr; }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+    <header>
+      <div class="controls">
+        <label>
+          Archivo
+          <input id="filePath" value="./libros/hp3.html" />
+        </label>
+
+        <label>
+          Parte 1: palabras
+          <input id="part1Words" type="number" min="1" max="40" value="2" />
+        </label>
+
+        <label>
+          Parte 2: palabras
+          <input id="part2Words" type="number" min="0" max="80" value="4" />
+        </label>
+
+        <label>
+          Parte 3: líneas
+          <input id="part3Lines" type="number" min="0" max="40" value="3" />
+        </label>
+
+        <label>
+          Parte 3: palabras/línea
+          <input id="part3Words" type="number" min="1" max="40" value="1" />
+        </label>
+
+        <label>
+          Tamaño de letra
+          <input id="fontSize" type="number" min="12" max="72" value="24" />
+        </label>
+
+        <label>
+          Sinestesia
+          <select id="synesthesiaMode">
+            <option value="off" selected>Off</option>
+            <option value="on">On</option>
+          </select>
+        </label>
+
+        <label>
+          Ancho de página
+          <input id="bookWidth" type="number" min="320" max="1800" value="980" />
+        </label>
+
+        <button id="loadBtn">Cargar / redibujar</button>
+
+        <label>
+          Palabras/minuto
+          <select id="wpm">
+            <option value="100">100</option>
+            <option value="150">150</option>
+            <option value="200">200</option>
+            <option value="250">250</option>
+            <option value="300">300</option>
+            <option value="350" selected>350</option>
+            <option value="400">400</option>
+            <option value="500">500</option>
+            <option value="600">600</option>
+          </select>
+        </label>
+
+        <button id="playBtn">▶ Play</button>
+
+        <label>
+          Salto inteligente
+          <select id="smartScrollMode">
+            <option value="screen" selected>Por pantalla</option>
+            <option value="block">Por bloque</option>
+          </select>
+        </label>
+
+        <label>
+          Pausa cada
+          <select id="breakEvery">
+            <option value="0" selected>Off</option>
+            <option value="1">1 minuto</option>
+            <option value="2">2 minutos</option>
+            <option value="3">3 minutos</option>
+            <option value="5">5 minutos</option>
+            <option value="10">10 minutos</option>
+            <option value="15">15 minutos</option>
+            <option value="20">20 minutos</option>
+          </select>
+        </label>
+
+        <label>
+          Duración pausa
+          <select id="breakDuration">
+            <option value="10" selected>10s</option>
+            <option value="20">20s</option>
+            <option value="30">30s</option>
+            <option value="45">45s</option>
+            <option value="60">60s</option>
+            <option value="90">90s</option>
+            <option value="120">120s</option>
+          </select>
+        </label>
+      </div>
+    </header>
+
+    <div id="pausePill" class="pause-pill">Pausa</div>
+
+    <div id="floatingPanel" class="floating-panel">
+      <span id="floatingStats" class="floating-stats">0/0 · --</span>
+      <button id="floatingStopBtn" class="floating-stop">■ Stop</button>
+    </div>
+
+    <main>
+      <div id="status" class="status">Listo para cargar.</div>
+      <div id="book" class="book"></div>
+    </main>
+  </div>
+
+  <script>
+    const els = {
+      filePath: document.querySelector('#filePath'),
+      part1Words: document.querySelector('#part1Words'),
+      part2Words: document.querySelector('#part2Words'),
+      part3Lines: document.querySelector('#part3Lines'),
+      part3Words: document.querySelector('#part3Words'),
+      fontSize: document.querySelector('#fontSize'),
+      synesthesiaMode: document.querySelector('#synesthesiaMode'),
+      bookWidth: document.querySelector('#bookWidth'),
+      loadBtn: document.querySelector('#loadBtn'),
+      playBtn: document.querySelector('#playBtn'),
+      floatingPanel: document.querySelector('#floatingPanel'),
+      floatingStats: document.querySelector('#floatingStats'),
+      floatingStopBtn: document.querySelector('#floatingStopBtn'),
+      pausePill: document.querySelector('#pausePill'),
+      wpm: document.querySelector('#wpm'),
+      smartScrollMode: document.querySelector('#smartScrollMode'),
+      breakEvery: document.querySelector('#breakEvery'),
+      breakDuration: document.querySelector('#breakDuration'),
+      status: document.querySelector('#status'),
+      book: document.querySelector('#book')
+    };
+
+    let originalUnits = [];
+    let autoScrollTimer = null;
+    let breakTimer = null;
+    let breakResumeTimer = null;
+    let breakCountdownTimer = null;
+    let isPlaying = false;
+    let isOnBreak = false;
+    let totalWordCount = 0;
+
+    const abc1 = {
+      'a': 'rgb(0,0,180)', 'A': 'rgb(0,0,180)', 'á': 'rgb(0,0,180)', 'Á': 'rgb(0,0,180)',
+      'b': 'rgb(175,13,102)', 'B': 'rgb(175,13,102)',
+      'c': 'rgb(146,248,70)', 'C': 'rgb(146,248,70)',
+      'd': 'rgb(255,200,47)', 'D': 'rgb(255,200,47)',
+      'e': 'rgb(255,118,0)', 'E': 'rgb(255,118,0)', 'é': 'rgb(255,118,0)', 'É': 'rgb(255,118,0)',
+      'f': 'rgb(255,152,213)', 'F': 'rgb(255,152,213)',
+      'g': 'rgb(235,235,222)', 'G': 'rgb(235,235,222)',
+      'h': 'rgb(100,100,100)', 'H': 'rgb(100,100,100)',
+      'i': 'rgb(255,255,0)', 'I': 'rgb(255,255,0)', 'í': 'rgb(255,255,0)', 'Í': 'rgb(255,255,0)',
+      'j': 'rgb(255,255,150)', 'J': 'rgb(255,255,150)',
+      'k': 'rgb(55,19,112)', 'K': 'rgb(55,19,112)',
+      'l': 'rgb(202,62,94)', 'L': 'rgb(202,62,94)',
+      'm': 'rgb(205,145,63)', 'M': 'rgb(205,145,63)',
+      'n': 'rgb(12,75,100)', 'N': 'rgb(12,75,100)', 'ñ': 'rgb(12,75,100)', 'Ñ': 'rgb(12,75,100)',
+      'o': 'rgb(255,0,0)', 'O': 'rgb(255,0,0)', 'ó': 'rgb(255,0,0)', 'Ó': 'rgb(255,0,0)',
+      'p': 'rgb(175,155,50)', 'P': 'rgb(175,155,50)',
+      'q': 'rgb(185,185,185)', 'Q': 'rgb(185,185,185)',
+      'r': 'rgb(37,70,25)', 'R': 'rgb(37,70,25)',
+      's': 'rgb(121,33,135)', 'S': 'rgb(121,33,135)',
+      't': 'rgb(83,140,208)', 'T': 'rgb(83,140,208)',
+      'u': 'rgb(0,154,37)', 'U': 'rgb(0,154,37)', 'ú': 'rgb(0,154,37)', 'Ú': 'rgb(0,154,37)',
+      'v': 'rgb(178,220,205)', 'V': 'rgb(178,220,205)',
+      'w': 'rgb(169,34,0)', 'W': 'rgb(169,34,0)',
+      'x': 'rgb(0,0,74)', 'X': 'rgb(0,0,74)',
+      'y': 'rgb(175,200,74)', 'Y': 'rgb(175,200,74)',
+      'z': 'rgb(63,25,12)', 'Z': 'rgb(63,25,12)',
+      '0': 'rgb(0,0,180)',
+      '1': 'rgb(175,13,102)',
+      '2': 'rgb(146,248,70)',
+      '3': 'rgb(255,200,47)',
+      '4': 'rgb(255,118,0)',
+      '5': 'rgb(255,152,213)',
+      '6': 'rgb(235,235,222)',
+      '7': 'rgb(100,100,100)',
+      '8': 'rgb(255,255,0)',
+      '9': 'rgb(255,255,150)'
+    };
+
+    function normalizeText(text) {
+      return text
+        .replace(/\u00a0/g, ' ')
+        .replace(/[ \t]+/g, ' ')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
+    }
+
+    function htmlToText(html) {
+      const doc = new DOMParser().parseFromString(html, 'text/html');
+
+      doc.querySelectorAll('script, style, noscript, svg, canvas').forEach(n => n.remove());
+
+      doc.querySelectorAll('p, div, br, h1, h2, h3, h4, h5, h6, li').forEach(n => {
+        n.insertAdjacentText('beforeend', '\n');
+      });
+
+      return normalizeText(doc.body ? doc.body.innerText : doc.documentElement.innerText);
+    }
+
+    function splitIntoUnits(text) {
+      const parts = text.split(/(\n\s*\n|\n)/g);
+      const units = [];
+
+      for (const part of parts) {
+        if (!part) continue;
+
+        if (/^\n\s*\n$/.test(part)) {
+          units.push({ type: 'break' });
+        } else if (/^\n$/.test(part)) {
+          units.push({ type: 'softBreak' });
+        } else {
+          const words = part.trim().split(/\s+/).filter(Boolean);
+          for (const word of words) units.push({ type: 'word', value: word });
+        }
+      }
+
+      return units;
+    }
+
+    function makeWordSpan(word) {
+      const span = document.createElement('span');
+
+      if (els.synesthesiaMode.value !== 'on') {
+        span.textContent = word;
+        return span;
+      }
+
+      span.className = 'syn-word';
+
+      for (const char of word) {
+        const charSpan = document.createElement('span');
+        charSpan.textContent = char;
+        if (abc1[char]) charSpan.style.color = abc1[char];
+        span.appendChild(charSpan);
+      }
+
+      return span;
+    }
+
+    function appendWords(container, words) {
+      words.forEach((word, i) => {
+        if (i > 0) container.append(' ');
+        container.appendChild(makeWordSpan(word));
+      });
+    }
+
+    function getConfig() {
+      return {
+        part1Words: Math.max(1, Number(els.part1Words.value) || 2),
+        part2Words: Math.max(0, Number(els.part2Words.value) || 0),
+        part3Lines: Math.max(0, Number(els.part3Lines.value) || 0),
+        part3Words: Math.max(1, Number(els.part3Words.value) || 1),
+        fontSize: Math.max(12, Number(els.fontSize.value) || 24),
+        bookWidth: Math.max(320, Number(els.bookWidth.value) || 980)
+      };
+    }
+
+    function takeWords(units, state, amount) {
+      const words = [];
+
+      while (state.i < units.length && words.length < amount) {
+        const unit = units[state.i];
+
+        if (unit.type === 'break') break;
+
+        if (unit.type === 'word') words.push(unit.value);
+
+        state.i++;
+      }
+
+      return words;
+    }
+
+    function getWordCountInElement(el) {
+      const text = el.innerText || el.textContent || '';
+      return text.trim().split(/\s+/).filter(Boolean).length;
+    }
+
+    function getVisibleBlocks() {
+      const header = document.querySelector('header');
+      const headerHeight = document.body.classList.contains('reading-mode') ? 0 : header.offsetHeight;
+      const topLimit = headerHeight;
+      const bottomLimit = window.innerHeight;
+
+      return Array.from(document.querySelectorAll('.block')).filter(block => {
+        const rect = block.getBoundingClientRect();
+        return rect.bottom > topLimit && rect.top < bottomLimit;
+      });
+    }
+
+    function countVisibleWords() {
+      const visibleBlocks = getVisibleBlocks();
+      return visibleBlocks.reduce((sum, block) => sum + getWordCountInElement(block), 0);
+    }
+
+    function getCurrentWordPosition() {
+      const blocks = Array.from(document.querySelectorAll('.block'));
+      if (!blocks.length) return 0;
+
+      const headerHeight = document.body.classList.contains('reading-mode')
+        ? 0
+        : document.querySelector('header').offsetHeight;
+
+      const topLimit = headerHeight + 8;
+
+      const firstReadable = blocks.find(block => {
+        const rect = block.getBoundingClientRect();
+        return rect.bottom > topLimit;
+      });
+
+      if (!firstReadable) return totalWordCount;
+
+      return Number(firstReadable.dataset.startWord || 1);
+    }
+
+    function formatTimeLeft(minutesFloat) {
+      if (!Number.isFinite(minutesFloat) || minutesFloat < 0) return '--';
+
+      const totalSeconds = Math.round(minutesFloat * 60);
+      const hours = Math.floor(totalSeconds / 3600);
+      const minutes = Math.floor((totalSeconds % 3600) / 60);
+      const seconds = totalSeconds % 60;
+
+      if (hours > 0) return `${hours}h ${String(minutes).padStart(2, '0')}m`;
+      if (minutes > 0) return `${minutes}m ${String(seconds).padStart(2, '0')}s`;
+      return `${seconds}s`;
+    }
+
+    function updateFloatingStats() {
+      const currentWord = Math.min(Math.max(1, getCurrentWordPosition()), Math.max(1, totalWordCount));
+      const wpm = Math.max(1, Number(els.wpm.value) || 350);
+      const remainingWords = Math.max(0, totalWordCount - currentWord + 1);
+      const timeLeft = formatTimeLeft(remainingWords / wpm);
+
+      let extra = '';
+
+      if (isOnBreak) {
+        extra = ' · pausa';
+      }
+
+      els.floatingStats.textContent =
+        `${currentWord.toLocaleString('es-AR')}/${totalWordCount.toLocaleString('es-AR')} · faltan ${timeLeft}${extra}`;
+    }
+
+    function updateVisibleWordStatus(extra = '') {
+      const visibleWords = countVisibleWords();
+      const currentWord = Math.min(Math.max(1, getCurrentWordPosition()), Math.max(1, totalWordCount));
+      const wpm = Math.max(1, Number(els.wpm.value) || 350);
+      const remainingWords = Math.max(0, totalWordCount - currentWord + 1);
+      const timeLeft = formatTimeLeft(remainingWords / wpm);
+      const base = els.status.textContent.replace(/ \| Visible:.*$/, '');
+
+      els.status.textContent =
+        `${base} | Visible: ${visibleWords} palabras | ${currentWord.toLocaleString('es-AR')}/${totalWordCount.toLocaleString('es-AR')} | faltan ${timeLeft}${extra}`;
+
+      updateFloatingStats();
+
+      return visibleWords;
+    }
+
+    function getBlocks() {
+      return Array.from(document.querySelectorAll('.block, .paragraph-break'));
+    }
+
+    function nearestBlockToY(targetY, direction = 1) {
+      const blocks = getBlocks();
+      if (!blocks.length) return null;
+
+      let best = null;
+      let bestDistance = Infinity;
+
+      for (const block of blocks) {
+        const y = block.getBoundingClientRect().top + window.scrollY;
+        const distance = Math.abs(y - targetY);
+
+        const isForwardOk = direction > 0 ? y >= targetY - 80 : y <= targetY + 80;
+
+        if (isForwardOk && distance < bestDistance) {
+          best = block;
+          bestDistance = distance;
+        }
+      }
+
+      return best || blocks[direction > 0 ? blocks.length - 1 : 0];
+    }
+
+    function getFirstNewBlockAfterVisible() {
+      const blocks = Array.from(document.querySelectorAll('.block'));
+      if (!blocks.length) return null;
+
+      const headerHeight = document.body.classList.contains('reading-mode')
+        ? 0
+        : document.querySelector('header').offsetHeight;
+
+      const topLimit = headerHeight + 8;
+      const bottomLimit = window.innerHeight;
+
+      const cutBottomBlock = blocks.find(block => {
+        const rect = block.getBoundingClientRect();
+        const startsInsideScreen = rect.top >= topLimit && rect.top < bottomLimit;
+        const endsBelowScreen = rect.bottom > bottomLimit + 4;
+        return startsInsideScreen && endsBelowScreen;
+      });
+
+      if (cutBottomBlock) return cutBottomBlock;
+
+      return blocks.find(block => {
+        const rect = block.getBoundingClientRect();
+        return rect.top >= bottomLimit - 4;
+      }) || blocks[blocks.length - 1];
+    }
+
+    function getPreviousBlockBeforeVisible() {
+      const blocks = Array.from(document.querySelectorAll('.block'));
+      if (!blocks.length) return null;
+
+      const headerHeight = document.body.classList.contains('reading-mode')
+        ? 0
+        : document.querySelector('header').offsetHeight;
+
+      const topLimit = headerHeight + 8;
+      let previous = blocks[0];
+
+      for (const block of blocks) {
+        const rect = block.getBoundingClientRect();
+
+        if (rect.top < topLimit) previous = block;
+        else break;
+      }
+
+      const idx = Math.max(0, blocks.indexOf(previous) - 1);
+      return blocks[idx];
+    }
+
+    function smartScroll(direction) {
+      const mode = els.smartScrollMode.value;
+
+      const headerHeight = document.body.classList.contains('reading-mode')
+        ? 0
+        : document.querySelector('header').offsetHeight;
+
+      const margin = 18;
+      const currentY = window.scrollY;
+
+      if (mode === 'block') {
+        const targetY = currentY + direction * 120;
+        const block = nearestBlockToY(targetY, direction);
+
+        if (block) {
+          const y = block.getBoundingClientRect().top + window.scrollY - headerHeight - margin;
+          window.scrollTo({ top: Math.max(0, y), behavior: 'smooth' });
+        }
+
+        return;
+      }
+
+      const block = direction > 0 ? getFirstNewBlockAfterVisible() : getPreviousBlockBeforeVisible();
+
+      if (block) {
+        const y = block.getBoundingClientRect().top + window.scrollY - headerHeight - margin;
+        window.scrollTo({ top: Math.max(0, y), behavior: 'smooth' });
+      }
+    }
+
+    function beep(freq = 880, duration = 180) {
+      try {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        const ctx = new AudioContext();
+
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+
+        osc.type = 'sine';
+        osc.frequency.value = freq;
+
+        gain.gain.setValueAtTime(0.001, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.18, ctx.currentTime + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration / 1000);
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+
+        osc.start();
+        osc.stop(ctx.currentTime + duration / 1000 + 0.03);
+      } catch (err) {
+        console.log('No pude reproducir alarma:', err);
+      }
+    }
+
+    function clearBreakTimers() {
+      clearTimeout(breakTimer);
+      clearTimeout(breakResumeTimer);
+      clearInterval(breakCountdownTimer);
+
+      breakTimer = null;
+      breakResumeTimer = null;
+      breakCountdownTimer = null;
+    }
+
+    function hidePausePill() {
+      els.pausePill.classList.remove('show');
+      els.pausePill.textContent = 'Pausa';
+    }
+
+    function showPausePill(text) {
+      els.pausePill.textContent = text;
+      els.pausePill.classList.add('show');
+    }
+
+    function scheduleBreakTimer() {
+      clearTimeout(breakTimer);
+
+      const everyMinutes = Number(els.breakEvery.value) || 0;
+
+      if (!isPlaying || everyMinutes <= 0) return;
+
+      breakTimer = setTimeout(() => {
+        startScheduledBreak();
+      }, everyMinutes * 60 * 1000);
+    }
+
+    function startScheduledBreak() {
+      if (!isPlaying || isOnBreak) return;
+
+      isOnBreak = true;
+
+      clearTimeout(autoScrollTimer);
+      autoScrollTimer = null;
+
+      clearTimeout(breakTimer);
+      breakTimer = null;
+
+      const pauseSeconds = Math.max(1, Number(els.breakDuration.value) || 10);
+      let remaining = pauseSeconds;
+
+      beep(520, 220);
+      showPausePill(`Pausa: ${remaining}s`);
+      updateVisibleWordStatus(` | pausa ${remaining}s`);
+
+      clearInterval(breakCountdownTimer);
+
+      breakCountdownTimer = setInterval(() => {
+        if (!isPlaying || !isOnBreak) {
+          clearInterval(breakCountdownTimer);
+          return;
+        }
+
+        remaining--;
+
+        if (remaining > 0) {
+          showPausePill(`Pausa: ${remaining}s`);
+          updateVisibleWordStatus(` | pausa ${remaining}s`);
+        }
+      }, 1000);
+
+      breakResumeTimer = setTimeout(() => {
+        if (!isPlaying) return;
+
+        clearInterval(breakCountdownTimer);
+        breakCountdownTimer = null;
+
+        beep(980, 220);
+        showPausePill('Termina pausa · vuelve en 2s');
+        updateVisibleWordStatus(' | termina pausa, vuelve en 2s');
+
+        setTimeout(() => {
+          if (!isPlaying) return;
+
+          isOnBreak = false;
+          hidePausePill();
+
+          scheduleNextAutoScroll();
+          scheduleBreakTimer();
+        }, 2000);
+
+      }, pauseSeconds * 1000);
+    }
+
+    function stopAutoScroll() {
+      isPlaying = false;
+      isOnBreak = false;
+
+      clearTimeout(autoScrollTimer);
+      autoScrollTimer = null;
+
+      clearBreakTimers();
+      hidePausePill();
+
+      document.body.classList.remove('reading-mode');
+      els.playBtn.textContent = '▶ Play';
+      updateVisibleWordStatus('');
+    }
+
+    function waitForScrollSettle(callback) {
+      let lastY = window.scrollY;
+      let stableFrames = 0;
+
+      function tick() {
+        const currentY = window.scrollY;
+
+        if (Math.abs(currentY - lastY) < 1) stableFrames++;
+        else stableFrames = 0;
+
+        lastY = currentY;
+
+        if (stableFrames >= 5) callback();
+        else requestAnimationFrame(tick);
+      }
+
+      requestAnimationFrame(tick);
+    }
+
+    function scheduleNextAutoScroll() {
+      if (!isPlaying || isOnBreak) return;
+
+      const wpm = Math.max(1, Number(els.wpm.value) || 200);
+      const visibleWords = Math.max(1, countVisibleWords());
+      const delayMs = Math.max(450, (visibleWords / wpm) * 60000);
+
+      updateVisibleWordStatus(` | ${wpm} ppm | próximo salto ${(delayMs / 1000).toFixed(1)}s`);
+
+      clearTimeout(autoScrollTimer);
+
+      autoScrollTimer = setTimeout(() => {
+        if (!isPlaying || isOnBreak) return;
+
+        smartScroll(1);
+
+        waitForScrollSettle(() => {
+          if (!isPlaying || isOnBreak) return;
+          scheduleNextAutoScroll();
+        });
+      }, delayMs);
+    }
+
+    function toggleAutoScroll() {
+      if (isPlaying) {
+        stopAutoScroll();
+        return;
+      }
+
+      isPlaying = true;
+      isOnBreak = false;
+
+      document.body.classList.add('reading-mode');
+      els.playBtn.textContent = '⏸ Pausa';
+
+      scheduleNextAutoScroll();
+      scheduleBreakTimer();
+    }
+
+    function renderUnits(units) {
+      const cfg = getConfig();
+
+      document.documentElement.style.setProperty('--font-size', cfg.fontSize + 'px');
+      document.documentElement.style.setProperty('--book-width', cfg.bookWidth + 'px');
+
+      els.book.innerHTML = '';
+
+      const state = { i: 0 };
+      let blockCount = 0;
+      let renderedWordIndex = 0;
+
+      totalWordCount = units.filter(u => u.type === 'word').length;
+
+      const fragment = document.createDocumentFragment();
+
+      while (state.i < units.length) {
+        const unit = units[state.i];
+
+        if (unit.type === 'break') {
+          const br = document.createElement('div');
+          br.className = 'paragraph-break';
+          fragment.appendChild(br);
+          state.i++;
+          continue;
+        }
+
+        if (unit.type !== 'word') {
+          state.i++;
+          continue;
+        }
+
+        const part1 = takeWords(units, state, cfg.part1Words);
+        const part2 = takeWords(units, state, cfg.part2Words);
+
+        const part3Lines = [];
+
+        for (let line = 0; line < cfg.part3Lines; line++) {
+          const words = takeWords(units, state, cfg.part3Words);
+
+          if (words.length) part3Lines.push(words);
+
+          if (state.i < units.length && units[state.i].type === 'break') break;
+        }
+
+        const block = document.createElement('div');
+        block.className = 'block';
+
+        const wordsInThisBlock =
+          part1.length +
+          part2.length +
+          part3Lines.reduce((sum, line) => sum + line.length, 0);
+
+        block.dataset.startWord = String(renderedWordIndex + 1);
+        block.dataset.endWord = String(renderedWordIndex + wordsInThisBlock);
+
+        renderedWordIndex += wordsInThisBlock;
+
+        const part1Prefix = part1.slice(0, -1);
+        const part1Anchor = part1.slice(-1);
+
+        const part2Prefix = part2.slice(0, -1);
+        const part2Anchor = part2.slice(-1);
+
+        const p1Prefix = document.createElement('div');
+        p1Prefix.className = part1Anchor.length ? 'part1-prefix has-anchor' : 'part1-prefix';
+        appendWords(p1Prefix, part1Prefix);
+        block.appendChild(p1Prefix);
+
+        const p1Anchor = document.createElement('div');
+        p1Anchor.className = part1Prefix.length ? 'part1-anchor' : 'part1-anchor empty';
+        appendWords(p1Anchor, part1Anchor);
+        block.appendChild(p1Anchor);
+
+        const p2Prefix = document.createElement('div');
+        p2Prefix.className = part2Anchor.length ? 'part2-prefix has-anchor' : 'part2-prefix';
+        appendWords(p2Prefix, part2Prefix);
+        block.appendChild(p2Prefix);
+
+        const p2Anchor = document.createElement('div');
+        p2Anchor.className = part2Prefix.length ? 'part2-anchor' : 'part2-anchor empty';
+        appendWords(p2Anchor, part2Anchor);
+        block.appendChild(p2Anchor);
+
+        if (part3Lines.length === 0) {
+          const p3 = document.createElement('div');
+          p3.className = 'part3 first empty';
+          block.appendChild(p3);
+        } else {
+          part3Lines.forEach((lineWords, index) => {
+            const p3 = document.createElement('div');
+            p3.className = index === 0 ? 'part3 first' : 'part3';
+            p3.style.gridRow = String(3 + index);
+            appendWords(p3, lineWords);
+            block.appendChild(p3);
+          });
+        }
+
+        fragment.appendChild(block);
+        blockCount++;
+      }
+
+      els.book.appendChild(fragment);
+
+      els.status.textContent =
+        `Renderizado: ${blockCount.toLocaleString('es-AR')} bloques. Formato ${cfg.part1Words} x ${cfg.part2Words} x ${cfg.part3Lines}. Total: ${totalWordCount.toLocaleString('es-AR')} palabras.`;
+
+      updateVisibleWordStatus('');
+    }
+
+    async function loadBook() {
+      stopAutoScroll();
+
+      const path = els.filePath.value.trim() || './libros/hp3.html';
+
+      els.status.textContent = 'Cargando ' + path + '...';
+      els.book.innerHTML = '';
+
+      try {
+        const res = await fetch(path, { cache: 'no-store' });
+
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+
+        const html = await res.text();
+        const text = htmlToText(html);
+
+        originalUnits = splitIntoUnits(text);
+
+        if (!originalUnits.some(u => u.type === 'word')) {
+          throw new Error('No encontré texto legible en el HTML.');
+        }
+
+        renderUnits(originalUnits);
+      } catch (err) {
+        els.status.textContent = 'Error al cargar.';
+
+        els.book.innerHTML = `
+          <div class="fallback">
+            <p><b>No pude abrir el archivo.</b></p>
+            <p>${String(err.message || err)}</p>
+            <p>Ojo: si abrís este HTML con doble click tipo <code>file://</code>, el navegador puede bloquear <code>fetch()</code>. Probalo con un servidor local:</p>
+            <pre>python3 -m http.server 8000</pre>
+            <p>Y después abrí: <code>http://localhost:8000/</code></p>
+          </div>
+        `;
+      }
+    }
+
+    els.loadBtn.addEventListener('click', loadBook);
+    els.playBtn.addEventListener('click', toggleAutoScroll);
+    els.floatingStopBtn.addEventListener('click', stopAutoScroll);
+
+    els.wpm.addEventListener('change', () => {
+      if (isPlaying && !isOnBreak) scheduleNextAutoScroll();
+      else updateVisibleWordStatus('');
+    });
+
+    els.breakEvery.addEventListener('change', () => {
+      if (isPlaying) scheduleBreakTimer();
+    });
+
+    els.breakDuration.addEventListener('change', () => {
+      if (!isPlaying) updateVisibleWordStatus('');
+    });
+
+    window.addEventListener('resize', () => {
+      if (isPlaying && !isOnBreak) scheduleNextAutoScroll();
+      else updateVisibleWordStatus('');
+    });
+
+    window.addEventListener('scroll', () => {
+      updateFloatingStats();
+
+      if (!isPlaying) updateVisibleWordStatus('');
+    }, { passive: true });
+
+    window.addEventListener('keydown', (ev) => {
+      const tag = document.activeElement?.tagName?.toLowerCase();
+      const isTyping = tag === 'input' || tag === 'textarea' || tag === 'select';
+
+      if (isTyping) return;
+
+      if (ev.key === 'ArrowRight') {
+        ev.preventDefault();
+        stopAutoScroll();
+        smartScroll(1);
+      }
+
+      if (ev.key === 'ArrowLeft') {
+        ev.preventDefault();
+        stopAutoScroll();
+        smartScroll(-1);
+      }
+
+      if (ev.key === ' ') {
+        ev.preventDefault();
+        toggleAutoScroll();
+      }
+    });
+
+    for (const input of [
+      els.part1Words,
+      els.part2Words,
+      els.part3Lines,
+      els.part3Words,
+      els.fontSize,
+      els.bookWidth,
+      els.synesthesiaMode
+    ]) {
+      input.addEventListener('input', () => {
+        if (originalUnits.length) renderUnits(originalUnits);
+      });
+    }
+
+    loadBook();
+  </script>
+</body>
+</html>
