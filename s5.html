@@ -224,9 +224,56 @@
       display: block;
     }
 
+
+
+    .progress-shell {
+      grid-column: 1 / -1;
+      display: grid;
+      gap: 5px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .progress-track {
+      width: 100%;
+      height: 12px;
+      overflow: hidden;
+      border: 1px solid #444;
+      border-radius: 999px;
+      background: #171717;
+    }
+
+    .progress-bar {
+      width: 0%;
+      height: 100%;
+      border-radius: inherit;
+      background: var(--accent);
+      transition: width 180ms linear;
+    }
+
+    .progress-text {
+      font-variant-numeric: tabular-nums;
+    }
+
+    .bookmark-tools {
+      grid-column: 1 / -1;
+      display: grid;
+      grid-template-columns: minmax(150px, 2fr) minmax(140px, 2fr) repeat(3, minmax(90px, auto));
+      gap: 10px;
+      align-items: end;
+      border-top: 1px solid rgba(255,255,255,0.08);
+      padding-top: 10px;
+    }
+
+    .bookmark-tools button {
+      min-height: 42px;
+    }
+
     @media (max-width: 680px) {
       :root { --font-size: 20px; }
       .controls { grid-template-columns: 1fr 1fr; }
+      .bookmark-tools { grid-template-columns: 1fr 1fr; }
+      .bookmark-tools button { width: 100%; }
     }
   </style>
 </head>
@@ -236,8 +283,20 @@
     <header>
       <div class="controls">
         <label>
+          Libro
+          <select id="bookSelect"></select>
+        </label>
+
+        <label>
+          Agregar libro
+          <input id="newBookName" placeholder="Ej: nuevo libro.html" />
+        </label>
+
+        <button id="addBookBtn">+ Libro</button>
+
+        <label>
           Archivo
-          <input id="filePath" value="./hp3.html" />
+          <input id="filePath" value="./libros/hp3.html" />
         </label>
 
         <label>
@@ -283,7 +342,7 @@
         <label>
           Palabras/minuto
           <select id="wpm">
-          <option value="100">100</option>
+            <option value="100">100</option>
             <option value="150">150</option>
             <option value="200">200</option>
             <option value="250">250</option>
@@ -306,6 +365,23 @@
         </label>
 
         <button id="playBtn">▶ Play</button>
+
+        <label>
+          Velocidad TTS español
+          <select id="ttsRate">
+            <option value="0.6">0.6x</option>
+            <option value="0.75">0.75x</option>
+            <option value="0.9">0.9x</option>
+            <option value="1" selected>1x</option>
+            <option value="1.15">1.15x</option>
+            <option value="1.25">1.25x</option>
+            <option value="1.5">1.5x</option>
+            <option value="1.75">1.75x</option>
+            <option value="2">2x</option>
+          </select>
+        </label>
+
+        <button id="playTtsBtn">▶ Play TTS</button>
 
         <label>
           Salto inteligente
@@ -341,6 +417,31 @@
             <option value="120">120s</option>
           </select>
         </label>
+
+        <div class="progress-shell">
+          <div id="progressText" class="progress-text">Avance: 0.00%</div>
+          <div class="progress-track" aria-label="Porcentaje de avance">
+            <div id="progressBar" class="progress-bar"></div>
+          </div>
+        </div>
+
+        <div class="bookmark-tools">
+          <label>
+            Nombre bookmark
+            <input id="bookmarkName" placeholder="Ej: capítulo raro" />
+          </label>
+
+          <label>
+            Bookmarks
+            <select id="bookmarkSelect">
+              <option value="">Sin bookmarks</option>
+            </select>
+          </label>
+
+          <button id="saveBookmarkBtn">★ Guardar</button>
+          <button id="goBookmarkBtn">Ir</button>
+          <button id="deleteBookmarkBtn">Borrar</button>
+        </div>
       </div>
     </header>
 
@@ -359,6 +460,9 @@
 
   <script>
     const els = {
+      bookSelect: document.querySelector('#bookSelect'),
+      newBookName: document.querySelector('#newBookName'),
+      addBookBtn: document.querySelector('#addBookBtn'),
       filePath: document.querySelector('#filePath'),
       part1Words: document.querySelector('#part1Words'),
       part2Words: document.querySelector('#part2Words'),
@@ -369,6 +473,8 @@
       bookWidth: document.querySelector('#bookWidth'),
       loadBtn: document.querySelector('#loadBtn'),
       playBtn: document.querySelector('#playBtn'),
+      ttsRate: document.querySelector('#ttsRate'),
+      playTtsBtn: document.querySelector('#playTtsBtn'),
       floatingPanel: document.querySelector('#floatingPanel'),
       floatingStats: document.querySelector('#floatingStats'),
       floatingStopBtn: document.querySelector('#floatingStopBtn'),
@@ -377,6 +483,13 @@
       smartScrollMode: document.querySelector('#smartScrollMode'),
       breakEvery: document.querySelector('#breakEvery'),
       breakDuration: document.querySelector('#breakDuration'),
+      progressText: document.querySelector('#progressText'),
+      progressBar: document.querySelector('#progressBar'),
+      bookmarkName: document.querySelector('#bookmarkName'),
+      bookmarkSelect: document.querySelector('#bookmarkSelect'),
+      saveBookmarkBtn: document.querySelector('#saveBookmarkBtn'),
+      goBookmarkBtn: document.querySelector('#goBookmarkBtn'),
+      deleteBookmarkBtn: document.querySelector('#deleteBookmarkBtn'),
       status: document.querySelector('#status'),
       book: document.querySelector('#book')
     };
@@ -389,6 +502,43 @@
     let isPlaying = false;
     let isOnBreak = false;
     let totalWordCount = 0;
+    let saveScrollTimer = null;
+    let isTtsPlaying = false;
+    let currentTtsUtterance = null;
+    let spanishVoice = null;
+
+    const SETTINGS_KEY = 'lectorEscalonado.settings.v2';
+    const BOOKS_KEY = 'lectorEscalonado.books.v2';
+    const CUSTOM_BOOK_LIST_KEY = 'lectorEscalonado.customBookList.v1';
+
+    const DEFAULT_BOOK_NAMES = [
+      "0number.html",
+      "Haruki Murakami - Kafka en la Orilla.html",
+      "hp3resumen.html",
+      "La Torre Oscura I.html",
+      "aleph2.html",
+      "benedetti.html",
+      "el capital en el siglo xxi - piketty thomas.html",
+      "divergente.html",
+      "Homero.LaIliada1.html",
+      "The 4-Hour Body.html",
+      "Elsenordelosanillos.html",
+      "hp3e.html",
+      "hp3.html",
+      "HarukiMurakami.DeQueHAbloCuandoHabloDeCorrer.html",
+      "rand ayn - el manantial.html",
+      "Rayuela_libro.html",
+      "aleph.html",
+      "hp3resumenEn.html",
+      "hp3e2.html",
+      "01 - Harry Potter y la Piedra Filosofal.html",
+      "rae.html",
+      "poemas borges.html",
+      "hp3e3.html",
+      "boys dont cry.html",
+      "La conjura de los necios.html",
+      "William Gibson - Neuromante.html"
+    ];
 
     const abc1 = {
       'a': 'rgb(0,0,180)', 'A': 'rgb(0,0,180)', 'á': 'rgb(0,0,180)', 'Á': 'rgb(0,0,180)',
@@ -428,6 +578,316 @@
       '8': 'rgb(255,255,0)',
       '9': 'rgb(255,255,150)'
     };
+
+
+    function safeJsonParse(value, fallback) {
+      try { return value ? JSON.parse(value) : fallback; }
+      catch (err) { return fallback; }
+    }
+
+    function cleanBookName(value) {
+      return String(value || '')
+        .trim()
+        .replace(/^\.\/libros\//i, '')
+        .replace(/^libros\//i, '');
+    }
+
+    function toBookPath(value) {
+      const raw = String(value || '').trim();
+      if (!raw) return './libros/hp3.html';
+      if (/^(https?:|file:|\/|\.\/|\.\.\/)/i.test(raw)) return raw;
+      if (/^libros\//i.test(raw)) return './' + raw;
+      return './libros/' + raw;
+    }
+
+    function readCustomBookNames() {
+      return safeJsonParse(localStorage.getItem(CUSTOM_BOOK_LIST_KEY), []);
+    }
+
+    function writeCustomBookNames(names) {
+      localStorage.setItem(CUSTOM_BOOK_LIST_KEY, JSON.stringify(names));
+    }
+
+    function getAllBookNames() {
+      const seen = new Set();
+      const names = [];
+
+      for (const name of [...DEFAULT_BOOK_NAMES, ...readCustomBookNames()]) {
+        const clean = cleanBookName(name);
+        if (!clean) continue;
+
+        const key = clean.toLowerCase();
+        if (seen.has(key)) continue;
+
+        seen.add(key);
+        names.push(clean);
+      }
+
+      return names;
+    }
+
+    function renderBookList() {
+      const currentPath = toBookPath(els.filePath.value);
+      const currentName = cleanBookName(currentPath);
+      const names = getAllBookNames();
+
+      els.bookSelect.innerHTML = '';
+
+      let hasCurrent = false;
+
+      for (const name of names) {
+        const path = toBookPath(name);
+        const opt = document.createElement('option');
+        opt.value = path;
+        opt.textContent = name;
+
+        if (path.toLowerCase() === currentPath.toLowerCase()) {
+          opt.selected = true;
+          hasCurrent = true;
+        }
+
+        els.bookSelect.appendChild(opt);
+      }
+
+      if (!hasCurrent && currentName) {
+        const opt = document.createElement('option');
+        opt.value = currentPath;
+        opt.textContent = currentName + ' (actual)';
+        opt.selected = true;
+        els.bookSelect.appendChild(opt);
+      }
+    }
+
+    function addBookFromInput() {
+      const name = cleanBookName(els.newBookName.value);
+      if (!name) return;
+
+      const custom = readCustomBookNames();
+      const exists = [...DEFAULT_BOOK_NAMES, ...custom]
+        .some(item => cleanBookName(item).toLowerCase() === name.toLowerCase());
+
+      if (!exists) {
+        custom.push(name);
+        writeCustomBookNames(custom);
+      }
+
+      els.newBookName.value = '';
+      els.filePath.value = toBookPath(name);
+      renderBookList();
+      saveSettings();
+      loadBook();
+    }
+
+    function getBookKey() {
+      return (els.filePath.value.trim() || './libros/hp3.html').toLowerCase();
+    }
+
+    function readSettings() {
+      return safeJsonParse(localStorage.getItem(SETTINGS_KEY), {});
+    }
+
+    function writeSettings(settings) {
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+    }
+
+    function readBooksState() {
+      return safeJsonParse(localStorage.getItem(BOOKS_KEY), {});
+    }
+
+    function writeBooksState(state) {
+      localStorage.setItem(BOOKS_KEY, JSON.stringify(state));
+    }
+
+    function getCurrentBookState() {
+      const all = readBooksState();
+      return all[getBookKey()] || { scrollY: 0, currentWord: 1, bookmarks: [] };
+    }
+
+    function saveCurrentBookState(partial) {
+      const key = getBookKey();
+      const all = readBooksState();
+      const prev = all[key] || { scrollY: 0, currentWord: 1, bookmarks: [] };
+      all[key] = { ...prev, ...partial, updatedAt: new Date().toISOString() };
+      writeBooksState(all);
+    }
+
+    function saveSettings() {
+      writeSettings({
+        filePath: els.filePath.value,
+        part1Words: els.part1Words.value,
+        part2Words: els.part2Words.value,
+        part3Lines: els.part3Lines.value,
+        part3Words: els.part3Words.value,
+        fontSize: els.fontSize.value,
+        synesthesiaMode: els.synesthesiaMode.value,
+        bookWidth: els.bookWidth.value,
+        wpm: els.wpm.value,
+        ttsRate: els.ttsRate.value,
+        smartScrollMode: els.smartScrollMode.value,
+        breakEvery: els.breakEvery.value,
+        breakDuration: els.breakDuration.value
+      });
+    }
+
+    function loadSettings() {
+      const settings = readSettings();
+
+      for (const [key, value] of Object.entries(settings)) {
+        if (els[key] && value !== undefined && value !== null) {
+          els[key].value = value;
+        }
+      }
+
+      els.filePath.value = toBookPath(els.filePath.value);
+      renderBookList();
+    }
+
+    function getProgressData() {
+      if (!totalWordCount) {
+        return { currentWord: 0, percent: 0, remainingWords: 0 };
+      }
+
+      const currentWord = Math.min(Math.max(1, getCurrentWordPosition()), totalWordCount);
+      const readWords = Math.max(0, currentWord - 1);
+      const percent = Math.min(100, Math.max(0, (readWords / totalWordCount) * 100));
+      const remainingWords = Math.max(0, totalWordCount - currentWord + 1);
+
+      return { currentWord, percent, remainingWords };
+    }
+
+    function updateProgressUi() {
+      const { currentWord, percent } = getProgressData();
+      const percentText = percent.toFixed(2) + '%';
+
+      els.progressBar.style.width = percentText;
+      els.progressText.textContent =
+        `Avance: ${percentText} · palabra ${currentWord.toLocaleString('es-AR')} de ${totalWordCount.toLocaleString('es-AR')}`;
+    }
+
+    function saveReadingPositionNow() {
+      if (!originalUnits.length || !totalWordCount) return;
+
+      const { currentWord, percent } = getProgressData();
+
+      saveCurrentBookState({
+        scrollY: window.scrollY,
+        currentWord,
+        percent: Number(percent.toFixed(3))
+      });
+    }
+
+    function scheduleSaveReadingPosition() {
+      clearTimeout(saveScrollTimer);
+      saveScrollTimer = setTimeout(saveReadingPositionNow, 250);
+    }
+
+    function scrollToWord(word, behavior = 'auto') {
+      const blocks = Array.from(document.querySelectorAll('.block'));
+      if (!blocks.length) return false;
+
+      const targetWord = Math.max(1, Number(word) || 1);
+      let target = blocks.find(block => {
+        const start = Number(block.dataset.startWord || 1);
+        const end = Number(block.dataset.endWord || start);
+        return start <= targetWord && end >= targetWord;
+      });
+
+      target = target || blocks.find(block => Number(block.dataset.startWord || 1) >= targetWord) || blocks[blocks.length - 1];
+
+      const headerHeight = document.body.classList.contains('reading-mode')
+        ? 0
+        : document.querySelector('header').offsetHeight;
+
+      const y = target.getBoundingClientRect().top + window.scrollY - headerHeight - 18;
+      window.scrollTo({ top: Math.max(0, y), behavior });
+      return true;
+    }
+
+    function restoreReadingPosition() {
+      const state = getCurrentBookState();
+      const word = Number(state.currentWord || 1);
+      const y = Number(state.scrollY || 0);
+
+      requestAnimationFrame(() => {
+        const restoredByWord = word > 1 && scrollToWord(word, 'auto');
+        if (!restoredByWord && y > 0) window.scrollTo({ top: y, behavior: 'auto' });
+        updateVisibleWordStatus('');
+      });
+    }
+
+    function renderBookmarks() {
+      const state = getCurrentBookState();
+      const bookmarks = Array.isArray(state.bookmarks) ? state.bookmarks : [];
+
+      els.bookmarkSelect.innerHTML = '';
+
+      if (!bookmarks.length) {
+        const opt = document.createElement('option');
+        opt.value = '';
+        opt.textContent = 'Sin bookmarks';
+        els.bookmarkSelect.appendChild(opt);
+        return;
+      }
+
+      for (const mark of bookmarks) {
+        const opt = document.createElement('option');
+        opt.value = mark.id;
+        const pct = Number(mark.percent || 0).toFixed(2);
+        opt.textContent = `${mark.name} · ${pct}% · palabra ${Number(mark.word || 1).toLocaleString('es-AR')}`;
+        els.bookmarkSelect.appendChild(opt);
+      }
+    }
+
+    function saveBookmark() {
+      if (!originalUnits.length || !totalWordCount) return;
+
+      const state = getCurrentBookState();
+      const bookmarks = Array.isArray(state.bookmarks) ? state.bookmarks : [];
+      const { currentWord, percent } = getProgressData();
+      const fallbackName = `Marca ${bookmarks.length + 1}`;
+      const name = (els.bookmarkName.value.trim() || fallbackName).slice(0, 80);
+
+      const mark = {
+        id: String(Date.now()),
+        name,
+        word: currentWord,
+        percent: Number(percent.toFixed(3)),
+        scrollY: window.scrollY,
+        createdAt: new Date().toISOString()
+      };
+
+      bookmarks.push(mark);
+      saveCurrentBookState({ bookmarks, scrollY: window.scrollY, currentWord, percent: mark.percent });
+      els.bookmarkName.value = '';
+      renderBookmarks();
+      els.bookmarkSelect.value = mark.id;
+      updateVisibleWordStatus(` | bookmark guardado: ${name}`);
+    }
+
+    function goToSelectedBookmark() {
+      const id = els.bookmarkSelect.value;
+      if (!id) return;
+
+      const state = getCurrentBookState();
+      const mark = (state.bookmarks || []).find(b => b.id === id);
+      if (!mark) return;
+
+      stopAutoScroll();
+      if (!scrollToWord(mark.word, 'smooth')) {
+        window.scrollTo({ top: Number(mark.scrollY || 0), behavior: 'smooth' });
+      }
+    }
+
+    function deleteSelectedBookmark() {
+      const id = els.bookmarkSelect.value;
+      if (!id) return;
+
+      const state = getCurrentBookState();
+      const bookmarks = (state.bookmarks || []).filter(b => b.id !== id);
+      saveCurrentBookState({ bookmarks });
+      renderBookmarks();
+      updateVisibleWordStatus(' | bookmark borrado');
+    }
 
     function normalizeText(text) {
       return text
@@ -579,9 +1039,8 @@
     }
 
     function updateFloatingStats() {
-      const currentWord = Math.min(Math.max(1, getCurrentWordPosition()), Math.max(1, totalWordCount));
+      const { currentWord, percent, remainingWords } = getProgressData();
       const wpm = Math.max(1, Number(els.wpm.value) || 350);
-      const remainingWords = Math.max(0, totalWordCount - currentWord + 1);
       const timeLeft = formatTimeLeft(remainingWords / wpm);
 
       let extra = '';
@@ -591,19 +1050,20 @@
       }
 
       els.floatingStats.textContent =
-        `${currentWord.toLocaleString('es-AR')}/${totalWordCount.toLocaleString('es-AR')} · faltan ${timeLeft}${extra}`;
+        `${percent.toFixed(1)}% · ${currentWord.toLocaleString('es-AR')}/${totalWordCount.toLocaleString('es-AR')} · faltan ${timeLeft}${extra}`;
+
+      updateProgressUi();
     }
 
     function updateVisibleWordStatus(extra = '') {
       const visibleWords = countVisibleWords();
-      const currentWord = Math.min(Math.max(1, getCurrentWordPosition()), Math.max(1, totalWordCount));
+      const { currentWord, percent, remainingWords } = getProgressData();
       const wpm = Math.max(1, Number(els.wpm.value) || 350);
-      const remainingWords = Math.max(0, totalWordCount - currentWord + 1);
       const timeLeft = formatTimeLeft(remainingWords / wpm);
-      const base = els.status.textContent.replace(/ \| Visible:.*$/, '');
+      const base = els.status.textContent.replace(/ \| Avance:.*$/, '').replace(/ \| Visible:.*$/, '');
 
       els.status.textContent =
-        `${base} | Visible: ${visibleWords} palabras | ${currentWord.toLocaleString('es-AR')}/${totalWordCount.toLocaleString('es-AR')} | faltan ${timeLeft}${extra}`;
+        `${base} | Avance: ${percent.toFixed(2)}% | Visible: ${visibleWords} palabras | ${currentWord.toLocaleString('es-AR')}/${totalWordCount.toLocaleString('es-AR')} | faltan ${timeLeft}${extra}`;
 
       updateFloatingStats();
 
@@ -828,7 +1288,137 @@
       }, pauseSeconds * 1000);
     }
 
+    function loadSpanishVoice() {
+      if (!('speechSynthesis' in window)) return;
+
+      const voices = speechSynthesis.getVoices();
+
+      spanishVoice =
+        voices.find(v => /^es-AR/i.test(v.lang)) ||
+        voices.find(v => /^es-ES/i.test(v.lang)) ||
+        voices.find(v => /^es/i.test(v.lang)) ||
+        null;
+    }
+
+    if ('speechSynthesis' in window) {
+      loadSpanishVoice();
+      speechSynthesis.onvoiceschanged = loadSpanishVoice;
+    }
+
+    function getVisibleTextForTts() {
+      const blocks = getVisibleBlocks();
+
+      return blocks
+        .map(block => block.innerText || block.textContent || '')
+        .join(' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+    }
+
+    function isAtBottom() {
+      return window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 12;
+    }
+
+    function stopTts() {
+      isTtsPlaying = false;
+      currentTtsUtterance = null;
+
+      if ('speechSynthesis' in window) {
+        speechSynthesis.cancel();
+      }
+
+      els.playTtsBtn.textContent = '▶ Play TTS';
+
+      if (!isPlaying) {
+        document.body.classList.remove('reading-mode');
+      }
+
+      updateVisibleWordStatus('');
+    }
+
+    function speakCurrentVisiblePage() {
+      if (!isTtsPlaying) return;
+
+      if (!('speechSynthesis' in window)) {
+        alert('Tu navegador no soporta TTS con speechSynthesis.');
+        stopTts();
+        return;
+      }
+
+      const text = getVisibleTextForTts();
+
+      if (!text) {
+        stopTts();
+        return;
+      }
+
+      speechSynthesis.cancel();
+
+      const utterance = new SpeechSynthesisUtterance(text);
+      currentTtsUtterance = utterance;
+
+      utterance.lang = 'es-AR';
+      utterance.rate = Math.max(0.5, Math.min(2, Number(els.ttsRate.value) || 1));
+      utterance.pitch = 1;
+      utterance.volume = 1;
+
+      if (spanishVoice) utterance.voice = spanishVoice;
+
+      utterance.onstart = () => {
+        updateVisibleWordStatus(` | TTS ${utterance.rate}x`);
+      };
+
+      utterance.onerror = () => {
+        stopTts();
+      };
+
+      utterance.onend = () => {
+        if (!isTtsPlaying) return;
+
+        saveReadingPositionNow();
+
+        if (isAtBottom()) {
+          stopTts();
+          return;
+        }
+
+        smartScroll(1);
+
+        waitForScrollSettle(() => {
+          if (!isTtsPlaying) return;
+
+          setTimeout(() => {
+            if (!isTtsPlaying) return;
+            speakCurrentVisiblePage();
+          }, 250);
+        });
+      };
+
+      speechSynthesis.speak(utterance);
+    }
+
+    function toggleTts() {
+      if (isTtsPlaying) {
+        stopTts();
+        return;
+      }
+
+      stopAutoScroll();
+
+      isTtsPlaying = true;
+      document.body.classList.add('reading-mode');
+      els.playTtsBtn.textContent = '■ Stop TTS';
+
+      speakCurrentVisiblePage();
+    }
+
     function stopAutoScroll() {
+      if (isTtsPlaying) {
+        isTtsPlaying = false;
+        if ('speechSynthesis' in window) speechSynthesis.cancel();
+        els.playTtsBtn.textContent = '▶ Play TTS';
+      }
+
       isPlaying = false;
       isOnBreak = false;
 
@@ -840,6 +1430,7 @@
 
       document.body.classList.remove('reading-mode');
       els.playBtn.textContent = '▶ Play';
+      renderBookmarks();
       updateVisibleWordStatus('');
     }
 
@@ -1008,13 +1599,17 @@
       els.status.textContent =
         `Renderizado: ${blockCount.toLocaleString('es-AR')} bloques. Formato ${cfg.part1Words} x ${cfg.part2Words} x ${cfg.part3Lines}. Total: ${totalWordCount.toLocaleString('es-AR')} palabras.`;
 
+      renderBookmarks();
       updateVisibleWordStatus('');
     }
 
     async function loadBook() {
       stopAutoScroll();
 
-      const path = els.filePath.value.trim() || './libros/hp3.html';
+      const path = toBookPath(els.filePath.value);
+      els.filePath.value = path;
+      renderBookList();
+      saveSettings();
 
       els.status.textContent = 'Cargando ' + path + '...';
       els.book.innerHTML = '';
@@ -1034,6 +1629,7 @@
         }
 
         renderUnits(originalUnits);
+        restoreReadingPosition();
       } catch (err) {
         els.status.textContent = 'Error al cargar.';
 
@@ -1050,19 +1646,47 @@
     }
 
     els.loadBtn.addEventListener('click', loadBook);
+    els.bookSelect.addEventListener('change', () => {
+      els.filePath.value = els.bookSelect.value;
+      saveSettings();
+      loadBook();
+    });
+    els.addBookBtn.addEventListener('click', addBookFromInput);
+    els.newBookName.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter') {
+        ev.preventDefault();
+        addBookFromInput();
+      }
+    });
     els.playBtn.addEventListener('click', toggleAutoScroll);
+    els.playTtsBtn.addEventListener('click', toggleTts);
     els.floatingStopBtn.addEventListener('click', stopAutoScroll);
+    els.saveBookmarkBtn.addEventListener('click', saveBookmark);
+    els.goBookmarkBtn.addEventListener('click', goToSelectedBookmark);
+    els.deleteBookmarkBtn.addEventListener('click', deleteSelectedBookmark);
 
     els.wpm.addEventListener('change', () => {
+      saveSettings();
       if (isPlaying && !isOnBreak) scheduleNextAutoScroll();
       else updateVisibleWordStatus('');
     });
 
+    els.ttsRate.addEventListener('change', () => {
+      saveSettings();
+
+      if (isTtsPlaying) {
+        speechSynthesis.cancel();
+        speakCurrentVisiblePage();
+      }
+    });
+
     els.breakEvery.addEventListener('change', () => {
+      saveSettings();
       if (isPlaying) scheduleBreakTimer();
     });
 
     els.breakDuration.addEventListener('change', () => {
+      saveSettings();
       if (!isPlaying) updateVisibleWordStatus('');
     });
 
@@ -1073,9 +1697,15 @@
 
     window.addEventListener('scroll', () => {
       updateFloatingStats();
+      scheduleSaveReadingPosition();
 
       if (!isPlaying) updateVisibleWordStatus('');
     }, { passive: true });
+
+    window.addEventListener('beforeunload', () => {
+      saveSettings();
+      saveReadingPositionNow();
+    });
 
     window.addEventListener('keydown', (ev) => {
       const tag = document.activeElement?.tagName?.toLowerCase();
@@ -1111,10 +1741,24 @@
       els.synesthesiaMode
     ]) {
       input.addEventListener('input', () => {
-        if (originalUnits.length) renderUnits(originalUnits);
+        saveSettings();
+        if (originalUnits.length) {
+          renderUnits(originalUnits);
+          restoreReadingPosition();
+        }
       });
     }
 
+    els.filePath.addEventListener('change', () => {
+      els.filePath.value = toBookPath(els.filePath.value);
+      renderBookList();
+      saveSettings();
+      loadBook();
+    });
+
+    els.smartScrollMode.addEventListener('change', saveSettings);
+
+    loadSettings();
     loadBook();
   </script>
 </body>
