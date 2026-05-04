@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Lector escalonado</title>
+  <title>Lector escalonado / Stepped Reader</title>
 
   <style>
     :root {
@@ -283,6 +283,14 @@
     <header>
       <div class="controls">
         <label>
+          Idioma / Language
+          <select id="uiLang">
+            <option value="es" selected>Español</option>
+            <option value="en">English</option>
+          </select>
+        </label>
+
+        <label>
           Libro
           <select id="bookSelect"></select>
         </label>
@@ -321,7 +329,7 @@
 
         <label>
           Tamaño de letra
-          <input id="fontSize" type="number" min="12" max="72" value="40" />
+          <input id="fontSize" type="number" min="12" max="72" value="24" />
         </label>
 
         <label>
@@ -400,8 +408,8 @@
         <label>
           Pausa cada
           <select id="breakEvery">
-            <option value="0" selected>Off</option>
-            <option value="1">1 minuto</option>
+            <option value="0" >Off</option>
+            <option value="1" selected>1 minuto</option>
             <option value="2">2 minutos</option>
             <option value="3">3 minutos</option>
             <option value="5">5 minutos</option>
@@ -466,6 +474,7 @@
 
   <script>
     const els = {
+      uiLang: document.querySelector('#uiLang'),
       bookSelect: document.querySelector('#bookSelect'),
       newBookName: document.querySelector('#newBookName'),
       addBookBtn: document.querySelector('#addBookBtn'),
@@ -515,6 +524,7 @@
     let isTtsPlaying = false;
     let currentTtsUtterance = null;
     let spanishVoice = null;
+    let currentLang = 'es';
 
     const SETTINGS_KEY = 'lectorEscalonado.settings.v2';
     const BOOKS_KEY = 'lectorEscalonado.books.v2';
@@ -589,6 +599,263 @@
     };
 
 
+    const I18N = {
+      es: {
+        title: 'Lector escalonado',
+        language: 'Idioma',
+        book: 'Libro',
+        addBook: 'Agregar libro',
+        addBookPlaceholder: 'Ej: nuevo libro.html',
+        addBookBtn: '+ Libro',
+        file: 'Archivo',
+        part1Words: 'Parte 1: palabras',
+        part2Words: 'Parte 2: palabras',
+        part3Lines: 'Parte 3: líneas',
+        part3Words: 'Parte 3: palabras/línea',
+        fontSize: 'Tamaño de letra',
+        synesthesia: 'Sinestesia',
+        applyFormat: 'Aplicar formato',
+        applyFormatPending: 'Aplicar formato *',
+        bookWidth: 'Ancho de página',
+        loadBtn: 'Cargar / redibujar',
+        wpm: 'Palabras/minuto',
+        play: '▶ Play',
+        pauseBtn: '⏸ Pausa',
+        ttsRate: 'Velocidad TTS español',
+        playTts: '▶ Play TTS',
+        stopTts: '■ Stop TTS',
+        smartScroll: 'Salto inteligente',
+        screenMode: 'Por pantalla',
+        blockMode: 'Por bloque',
+        breakEvery: 'Pausa cada',
+        breakDuration: 'Duración pausa',
+        off: 'Off',
+        minute: 'minuto',
+        minutes: 'minutos',
+        bookmarkName: 'Nombre bookmark',
+        bookmarkNamePlaceholder: 'Ej: capítulo raro',
+        bookmarks: 'Bookmarks',
+        saveBookmark: '★ Guardar',
+        go: 'Ir',
+        delete: 'Borrar',
+        floatingStop: '■ Stop',
+        ready: 'Listo para cargar.',
+        progressZero: 'Avance: 0.00%',
+        progress: 'Avance: {percent} · palabra {current} de {total}',
+        currentSuffix: 'actual',
+        noBookmarks: 'Sin bookmarks',
+        bookmarkOption: '{name} · {percent}% · palabra {word}',
+        defaultBookmark: 'Marca {n}',
+        bookmarkSaved: 'bookmark guardado: {name}',
+        bookmarkDeleted: 'bookmark borrado',
+        cssApplied: 'CSS aplicado',
+        formatPendingExtra: 'formato pendiente',
+        loading: 'Cargando {path}...',
+        loadError: 'Error al cargar.',
+        fallbackTitle: 'No pude abrir el archivo.',
+        fallbackHelp1: 'Ojo: si abrís este HTML con doble click tipo',
+        fallbackHelp2: 'el navegador puede bloquear',
+        fallbackHelp3: 'Probalo con un servidor local:',
+        fallbackHelp4: 'Y después abrí:',
+        noReadableText: 'No encontré texto legible en el HTML.',
+        rendered: 'Renderizado: {blocks} bloques. Formato {p1} x {p2} x {p3}. Total: {total} palabras.',
+        progressStatus: 'Avance: {percent}%',
+        visibleStatus: 'Visible: {visible} palabras',
+        remaining: 'faltan {time}',
+        wordCount: '{current}/{total}',
+        ttsStatus: 'TTS {rate}x',
+        ttsUnsupported: 'Tu navegador no soporta TTS con speechSynthesis.',
+        pause: 'Pausa',
+        pauseCountdown: 'Pausa: {seconds}s',
+        pauseExtra: 'pausa {seconds}s',
+        pauseFloating: 'pausa',
+        pauseEnds: 'Termina pausa · vuelve en 2s',
+        pauseEndsExtra: 'termina pausa, vuelve en 2s',
+        nextJump: '{wpm} ppm | próximo salto {seconds}s',
+        wordsUnit: 'palabras'
+      },
+      en: {
+        title: 'Stepped Reader',
+        language: 'Language',
+        book: 'Book',
+        addBook: 'Add book',
+        addBookPlaceholder: 'Ex: new book.html',
+        addBookBtn: '+ Book',
+        file: 'File',
+        part1Words: 'Part 1: words',
+        part2Words: 'Part 2: words',
+        part3Lines: 'Part 3: lines',
+        part3Words: 'Part 3: words/line',
+        fontSize: 'Font size',
+        synesthesia: 'Synesthesia',
+        applyFormat: 'Apply format',
+        applyFormatPending: 'Apply format *',
+        bookWidth: 'Page width',
+        loadBtn: 'Load / redraw',
+        wpm: 'Words/minute',
+        play: '▶ Play',
+        pauseBtn: '⏸ Pause',
+        ttsRate: 'Spanish TTS speed',
+        playTts: '▶ Play TTS',
+        stopTts: '■ Stop TTS',
+        smartScroll: 'Smart jump',
+        screenMode: 'By screen',
+        blockMode: 'By block',
+        breakEvery: 'Break every',
+        breakDuration: 'Break duration',
+        off: 'Off',
+        minute: 'minute',
+        minutes: 'minutes',
+        bookmarkName: 'Bookmark name',
+        bookmarkNamePlaceholder: 'Ex: weird chapter',
+        bookmarks: 'Bookmarks',
+        saveBookmark: '★ Save',
+        go: 'Go',
+        delete: 'Delete',
+        floatingStop: '■ Stop',
+        ready: 'Ready to load.',
+        progressZero: 'Progress: 0.00%',
+        progress: 'Progress: {percent} · word {current} of {total}',
+        currentSuffix: 'current',
+        noBookmarks: 'No bookmarks',
+        bookmarkOption: '{name} · {percent}% · word {word}',
+        defaultBookmark: 'Bookmark {n}',
+        bookmarkSaved: 'bookmark saved: {name}',
+        bookmarkDeleted: 'bookmark deleted',
+        cssApplied: 'CSS applied',
+        formatPendingExtra: 'format pending',
+        loading: 'Loading {path}...',
+        loadError: 'Load error.',
+        fallbackTitle: 'I could not open the file.',
+        fallbackHelp1: 'Note: if you open this HTML by double-clicking it as',
+        fallbackHelp2: 'the browser may block',
+        fallbackHelp3: 'Try it with a local server:',
+        fallbackHelp4: 'Then open:',
+        noReadableText: 'I could not find readable text in the HTML.',
+        rendered: 'Rendered: {blocks} blocks. Format {p1} x {p2} x {p3}. Total: {total} words.',
+        progressStatus: 'Progress: {percent}%',
+        visibleStatus: 'Visible: {visible} words',
+        remaining: '{time} left',
+        wordCount: '{current}/{total}',
+        ttsStatus: 'TTS {rate}x',
+        ttsUnsupported: 'Your browser does not support TTS with speechSynthesis.',
+        pause: 'Break',
+        pauseCountdown: 'Break: {seconds}s',
+        pauseExtra: 'break {seconds}s',
+        pauseFloating: 'break',
+        pauseEnds: 'Break ends · resumes in 2s',
+        pauseEndsExtra: 'break ends, resumes in 2s',
+        nextJump: '{wpm} wpm | next jump {seconds}s',
+        wordsUnit: 'words'
+      }
+    };
+
+    function t(key, vars = {}) {
+      const dict = I18N[currentLang] || I18N.es;
+      let text = dict[key] || I18N.es[key] || key;
+      for (const [name, value] of Object.entries(vars)) {
+        text = text.replaceAll('{' + name + '}', String(value));
+      }
+      return text;
+    }
+
+    function localeCode() {
+      return currentLang === 'en' ? 'en-US' : 'es-AR';
+    }
+
+    function nf(value) {
+      return Number(value || 0).toLocaleString(localeCode());
+    }
+
+    function setLabel(inputId, key) {
+      const label = els[inputId]?.closest('label');
+      if (!label) return;
+
+      for (const node of label.childNodes) {
+        if (node.nodeType === Node.TEXT_NODE && node.textContent.trim()) {
+          node.textContent = '\n          ' + t(key) + '\n          ';
+          return;
+        }
+      }
+    }
+
+    function setButton(id, key) {
+      if (els[id]) els[id].textContent = t(key);
+    }
+
+    function setOptionText(select, value, text) {
+      const option = select?.querySelector(`option[value="${value}"]`);
+      if (option) option.textContent = text;
+    }
+
+    function updateBreakOptionsLanguage() {
+      setOptionText(els.breakEvery, '0', t('off'));
+      for (const option of els.breakEvery.options) {
+        const n = Number(option.value);
+        if (n > 0) option.textContent = n + ' ' + (n === 1 ? t('minute') : t('minutes'));
+      }
+    }
+
+    function updateDynamicButtonTexts() {
+      els.playBtn.textContent = isPlaying ? t('pauseBtn') : t('play');
+      els.playTtsBtn.textContent = isTtsPlaying ? t('stopTts') : t('playTts');
+      els.applyFormatBtn.textContent = formatPending ? t('applyFormatPending') : t('applyFormat');
+      els.floatingStopBtn.textContent = t('floatingStop');
+    }
+
+    function applyLanguage() {
+      currentLang = els.uiLang?.value || 'es';
+      document.documentElement.lang = currentLang;
+      document.title = t('title');
+
+      setLabel('uiLang', 'language');
+      setLabel('bookSelect', 'book');
+      setLabel('newBookName', 'addBook');
+      setLabel('filePath', 'file');
+      setLabel('part1Words', 'part1Words');
+      setLabel('part2Words', 'part2Words');
+      setLabel('part3Lines', 'part3Lines');
+      setLabel('part3Words', 'part3Words');
+      setLabel('fontSize', 'fontSize');
+      setLabel('synesthesiaMode', 'synesthesia');
+      setLabel('bookWidth', 'bookWidth');
+      setLabel('wpm', 'wpm');
+      setLabel('ttsRate', 'ttsRate');
+      setLabel('smartScrollMode', 'smartScroll');
+      setLabel('breakEvery', 'breakEvery');
+      setLabel('breakDuration', 'breakDuration');
+      setLabel('bookmarkName', 'bookmarkName');
+      setLabel('bookmarkSelect', 'bookmarks');
+
+      els.newBookName.placeholder = t('addBookPlaceholder');
+      els.bookmarkName.placeholder = t('bookmarkNamePlaceholder');
+
+      setButton('addBookBtn', 'addBookBtn');
+      setButton('loadBtn', 'loadBtn');
+      setButton('saveBookmarkBtn', 'saveBookmark');
+      setButton('goBookmarkBtn', 'go');
+      setButton('deleteBookmarkBtn', 'delete');
+
+      updateDynamicButtonTexts();
+
+      setOptionText(els.synesthesiaMode, 'off', t('off'));
+      setOptionText(els.synesthesiaMode, 'on', currentLang === 'en' ? 'On' : 'On');
+      setOptionText(els.smartScrollMode, 'screen', t('screenMode'));
+      setOptionText(els.smartScrollMode, 'block', t('blockMode'));
+      updateBreakOptionsLanguage();
+
+      if (!originalUnits.length) {
+        els.status.textContent = t('ready');
+        els.progressText.textContent = t('progressZero');
+      }
+
+      renderBookList();
+      renderBookmarks();
+      updateProgressUi();
+      updateFloatingStats();
+    }
+
+
     function safeJsonParse(value, fallback) {
       try { return value ? JSON.parse(value) : fallback; }
       catch (err) { return fallback; }
@@ -604,7 +871,7 @@
       document.documentElement.style.setProperty('--font-size', cfg.fontSize + 'px');
       document.documentElement.style.setProperty('--book-width', cfg.bookWidth + 'px');
       saveSettings();
-      updateVisibleWordStatus(' | CSS aplicado');
+      updateVisibleWordStatus(' | ' + t('cssApplied'));
 
       if (isPlaying && !isOnBreak) scheduleNextAutoScroll();
     }
@@ -617,8 +884,8 @@
     function markFormatPending() {
       formatPending = true;
       saveSettings();
-      els.applyFormatBtn.textContent = 'Aplicar formato *';
-      updateVisibleWordStatus(' | formato pendiente');
+      els.applyFormatBtn.textContent = t('applyFormatPending');
+      updateVisibleWordStatus(' | ' + t('formatPendingExtra'));
     }
 
     function applyFormatChanges() {
@@ -632,7 +899,7 @@
       restoreReadingPosition();
 
       formatPending = false;
-      els.applyFormatBtn.textContent = 'Aplicar formato';
+      els.applyFormatBtn.textContent = t('applyFormat');
     }
 
     function cleanBookName(value) {
@@ -702,7 +969,7 @@
       if (!hasCurrent && currentName) {
         const opt = document.createElement('option');
         opt.value = currentPath;
-        opt.textContent = currentName + ' (actual)';
+        opt.textContent = currentName + ' (' + t('currentSuffix') + ')';
         opt.selected = true;
         els.bookSelect.appendChild(opt);
       }
@@ -763,6 +1030,7 @@
 
     function saveSettings() {
       writeSettings({
+        uiLang: els.uiLang.value,
         filePath: els.filePath.value,
         part1Words: els.part1Words.value,
         part2Words: els.part2Words.value,
@@ -811,7 +1079,7 @@
 
       els.progressBar.style.width = percentText;
       els.progressText.textContent =
-        `Avance: ${percentText} · palabra ${currentWord.toLocaleString('es-AR')} de ${totalWordCount.toLocaleString('es-AR')}`;
+        t('progress', { percent: percentText, current: nf(currentWord), total: nf(totalWordCount) });
     }
 
     function saveReadingPositionNow() {
@@ -874,7 +1142,7 @@
       if (!bookmarks.length) {
         const opt = document.createElement('option');
         opt.value = '';
-        opt.textContent = 'Sin bookmarks';
+        opt.textContent = t('noBookmarks');
         els.bookmarkSelect.appendChild(opt);
         return;
       }
@@ -883,7 +1151,7 @@
         const opt = document.createElement('option');
         opt.value = mark.id;
         const pct = Number(mark.percent || 0).toFixed(2);
-        opt.textContent = `${mark.name} · ${pct}% · palabra ${Number(mark.word || 1).toLocaleString('es-AR')}`;
+        opt.textContent = t('bookmarkOption', { name: mark.name, percent: pct, word: nf(mark.word || 1) });
         els.bookmarkSelect.appendChild(opt);
       }
     }
@@ -894,7 +1162,7 @@
       const state = getCurrentBookState();
       const bookmarks = Array.isArray(state.bookmarks) ? state.bookmarks : [];
       const { currentWord, percent } = getProgressData();
-      const fallbackName = `Marca ${bookmarks.length + 1}`;
+      const fallbackName = t('defaultBookmark', { n: bookmarks.length + 1 });
       const name = (els.bookmarkName.value.trim() || fallbackName).slice(0, 80);
 
       const mark = {
@@ -911,7 +1179,7 @@
       els.bookmarkName.value = '';
       renderBookmarks();
       els.bookmarkSelect.value = mark.id;
-      updateVisibleWordStatus(` | bookmark guardado: ${name}`);
+      updateVisibleWordStatus(' | ' + t('bookmarkSaved', { name }));
     }
 
     function goToSelectedBookmark() {
@@ -936,7 +1204,7 @@
       const bookmarks = (state.bookmarks || []).filter(b => b.id !== id);
       saveCurrentBookState({ bookmarks });
       renderBookmarks();
-      updateVisibleWordStatus(' | bookmark borrado');
+      updateVisibleWordStatus(' | ' + t('bookmarkDeleted'));
     }
 
     function normalizeText(text) {
@@ -1096,11 +1364,11 @@
       let extra = '';
 
       if (isOnBreak) {
-        extra = ' · pausa';
+        extra = ' · ' + t('pauseFloating');
       }
 
       els.floatingStats.textContent =
-        `${percent.toFixed(1)}% · ${currentWord.toLocaleString('es-AR')}/${totalWordCount.toLocaleString('es-AR')} · faltan ${timeLeft}${extra}`;
+        `${percent.toFixed(1)}% · ${nf(currentWord)}/${nf(totalWordCount)} · ${t('remaining', { time: timeLeft })}${extra}`;
 
       updateProgressUi();
     }
@@ -1110,10 +1378,10 @@
       const { currentWord, percent, remainingWords } = getProgressData();
       const wpm = Math.max(1, Number(els.wpm.value) || 350);
       const timeLeft = formatTimeLeft(remainingWords / wpm);
-      const base = els.status.textContent.replace(/ \| Avance:.*$/, '').replace(/ \| Visible:.*$/, '');
+      const base = els.status.textContent.split(' | ')[0];
 
       els.status.textContent =
-        `${base} | Avance: ${percent.toFixed(2)}% | Visible: ${visibleWords} palabras | ${currentWord.toLocaleString('es-AR')}/${totalWordCount.toLocaleString('es-AR')} | faltan ${timeLeft}${extra}`;
+        `${base} | ${t('progressStatus', { percent: percent.toFixed(2) })} | ${t('visibleStatus', { visible: visibleWords })} | ${t('wordCount', { current: nf(currentWord), total: nf(totalWordCount) })} | ${t('remaining', { time: timeLeft })}${extra}`;
 
       updateFloatingStats();
 
@@ -1261,7 +1529,7 @@
 
     function hidePausePill() {
       els.pausePill.classList.remove('show');
-      els.pausePill.textContent = 'Pausa';
+      els.pausePill.textContent = t('pause');
     }
 
     function showPausePill(text) {
@@ -1296,8 +1564,8 @@
       let remaining = pauseSeconds;
 
       beep(520, 220);
-      showPausePill(`Pausa: ${remaining}s`);
-      updateVisibleWordStatus(` | pausa ${remaining}s`);
+      showPausePill(t('pauseCountdown', { seconds: remaining }));
+      updateVisibleWordStatus(' | ' + t('pauseExtra', { seconds: remaining }));
 
       clearInterval(breakCountdownTimer);
 
@@ -1310,8 +1578,8 @@
         remaining--;
 
         if (remaining > 0) {
-          showPausePill(`Pausa: ${remaining}s`);
-          updateVisibleWordStatus(` | pausa ${remaining}s`);
+          showPausePill(t('pauseCountdown', { seconds: remaining }));
+          updateVisibleWordStatus(' | ' + t('pauseExtra', { seconds: remaining }));
         }
       }, 1000);
 
@@ -1322,8 +1590,8 @@
         breakCountdownTimer = null;
 
         beep(980, 220);
-        showPausePill('Termina pausa · vuelve en 2s');
-        updateVisibleWordStatus(' | termina pausa, vuelve en 2s');
+        showPausePill(t('pauseEnds'));
+        updateVisibleWordStatus(' | ' + t('pauseEndsExtra'));
 
         setTimeout(() => {
           if (!isPlaying) return;
@@ -1377,7 +1645,7 @@
         speechSynthesis.cancel();
       }
 
-      els.playTtsBtn.textContent = '▶ Play TTS';
+      els.playTtsBtn.textContent = t('playTts');
 
       if (!isPlaying) {
         document.body.classList.remove('reading-mode');
@@ -1390,7 +1658,7 @@
       if (!isTtsPlaying) return;
 
       if (!('speechSynthesis' in window)) {
-        alert('Tu navegador no soporta TTS con speechSynthesis.');
+        alert(t('ttsUnsupported'));
         stopTts();
         return;
       }
@@ -1415,7 +1683,7 @@
       if (spanishVoice) utterance.voice = spanishVoice;
 
       utterance.onstart = () => {
-        updateVisibleWordStatus(` | TTS ${utterance.rate}x`);
+        updateVisibleWordStatus(' | ' + t('ttsStatus', { rate: utterance.rate }));
       };
 
       utterance.onerror = () => {
@@ -1457,7 +1725,7 @@
 
       isTtsPlaying = true;
       document.body.classList.add('reading-mode');
-      els.playTtsBtn.textContent = '■ Stop TTS';
+      els.playTtsBtn.textContent = t('stopTts');
 
       speakCurrentVisiblePage();
     }
@@ -1466,7 +1734,7 @@
       if (isTtsPlaying) {
         isTtsPlaying = false;
         if ('speechSynthesis' in window) speechSynthesis.cancel();
-        els.playTtsBtn.textContent = '▶ Play TTS';
+        els.playTtsBtn.textContent = t('playTts');
       }
 
       isPlaying = false;
@@ -1479,7 +1747,7 @@
       hidePausePill();
 
       document.body.classList.remove('reading-mode');
-      els.playBtn.textContent = '▶ Play';
+      els.playBtn.textContent = t('play');
       renderBookmarks();
       updateVisibleWordStatus('');
     }
@@ -1510,7 +1778,7 @@
       const visibleWords = Math.max(1, countVisibleWords());
       const delayMs = Math.max(450, (visibleWords / wpm) * 60000);
 
-      updateVisibleWordStatus(` | ${wpm} ppm | próximo salto ${(delayMs / 1000).toFixed(1)}s`);
+      updateVisibleWordStatus(' | ' + t('nextJump', { wpm, seconds: (delayMs / 1000).toFixed(1) }));
 
       clearTimeout(autoScrollTimer);
 
@@ -1536,7 +1804,7 @@
       isOnBreak = false;
 
       document.body.classList.add('reading-mode');
-      els.playBtn.textContent = '⏸ Pausa';
+      els.playBtn.textContent = t('pauseBtn');
 
       scheduleNextAutoScroll();
       scheduleBreakTimer();
@@ -1647,13 +1915,13 @@
       els.book.appendChild(fragment);
 
       els.status.textContent =
-        `Renderizado: ${blockCount.toLocaleString('es-AR')} bloques. Formato ${cfg.part1Words} x ${cfg.part2Words} x ${cfg.part3Lines}. Total: ${totalWordCount.toLocaleString('es-AR')} palabras.`;
+        t('rendered', { blocks: nf(blockCount), p1: cfg.part1Words, p2: cfg.part2Words, p3: cfg.part3Lines, total: nf(totalWordCount) });
 
       renderBookmarks();
       updateVisibleWordStatus('');
 
       formatPending = false;
-      if (els.applyFormatBtn) els.applyFormatBtn.textContent = 'Aplicar formato';
+      if (els.applyFormatBtn) els.applyFormatBtn.textContent = t('applyFormat');
     }
 
     async function loadBook() {
@@ -1664,7 +1932,7 @@
       renderBookList();
       saveSettings();
 
-      els.status.textContent = 'Cargando ' + path + '...';
+      els.status.textContent = t('loading', { path });
       els.book.innerHTML = '';
 
       try {
@@ -1678,25 +1946,31 @@
         originalUnits = splitIntoUnits(text);
 
         if (!originalUnits.some(u => u.type === 'word')) {
-          throw new Error('No encontré texto legible en el HTML.');
+          throw new Error(t('noReadableText'));
         }
 
         renderUnits(originalUnits);
         restoreReadingPosition();
       } catch (err) {
-        els.status.textContent = 'Error al cargar.';
+        els.status.textContent = t('loadError');
 
         els.book.innerHTML = `
           <div class="fallback">
-            <p><b>No pude abrir el archivo.</b></p>
+            <p><b>${t('fallbackTitle')}</b></p>
             <p>${String(err.message || err)}</p>
-            <p>Ojo: si abrís este HTML con doble click tipo <code>file://</code>, el navegador puede bloquear <code>fetch()</code>. Probalo con un servidor local:</p>
+            <p>${t('fallbackHelp1')} <code>file://</code>, ${t('fallbackHelp2')} <code>fetch()</code>. ${t('fallbackHelp3')}</p>
             <pre>python3 -m http.server 8000</pre>
-            <p>Y después abrí: <code>http://localhost:8000/</code></p>
+            <p>${t('fallbackHelp4')} <code>http://localhost:8000/</code></p>
           </div>
         `;
       }
     }
+
+    els.uiLang.addEventListener('change', () => {
+      applyLanguage();
+      saveSettings();
+      if (originalUnits.length) updateVisibleWordStatus('');
+    });
 
     els.loadBtn.addEventListener('click', loadBook);
     els.applyFormatBtn.addEventListener('click', applyFormatChanges);
@@ -1811,6 +2085,7 @@
     els.smartScrollMode.addEventListener('change', saveSettings);
 
     loadSettings();
+    applyLanguage();
     loadBook();
   </script>
 </body>
