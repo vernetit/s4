@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Stepped Reader</title>
+  <title>Lector escalonado / Stepped Reader</title>
 
   <style>
     :root {
@@ -224,9 +224,56 @@
       display: block;
     }
 
+
+
+    .progress-shell {
+      grid-column: 1 / -1;
+      display: grid;
+      gap: 5px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .progress-track {
+      width: 100%;
+      height: 12px;
+      overflow: hidden;
+      border: 1px solid #444;
+      border-radius: 999px;
+      background: #171717;
+    }
+
+    .progress-bar {
+      width: 0%;
+      height: 100%;
+      border-radius: inherit;
+      background: var(--accent);
+      transition: width 180ms linear;
+    }
+
+    .progress-text {
+      font-variant-numeric: tabular-nums;
+    }
+
+    .bookmark-tools {
+      grid-column: 1 / -1;
+      display: grid;
+      grid-template-columns: minmax(150px, 2fr) minmax(140px, 2fr) repeat(3, minmax(90px, auto));
+      gap: 10px;
+      align-items: end;
+      border-top: 1px solid rgba(255,255,255,0.08);
+      padding-top: 10px;
+    }
+
+    .bookmark-tools button {
+      min-height: 42px;
+    }
+
     @media (max-width: 680px) {
       :root { --font-size: 20px; }
       .controls { grid-template-columns: 1fr 1fr; }
+      .bookmark-tools { grid-template-columns: 1fr 1fr; }
+      .bookmark-tools button { width: 100%; }
     }
   </style>
 </head>
@@ -236,54 +283,76 @@
     <header>
       <div class="controls">
         <label>
-          File
-          <input id="filePath" value="./hp3e2.html" />
+          Idioma / Language
+          <select id="uiLang">
+            <option value="es" selected>Español</option>
+            <option value="en">English</option>
+          </select>
         </label>
 
         <label>
-          Part 1: words
+          Libro
+          <select id="bookSelect"></select>
+        </label>
+
+        <label>
+          Agregar libro
+          <input id="newBookName" placeholder="Ej: nuevo libro.html" />
+        </label>
+
+        <button id="addBookBtn">+ Libro</button>
+
+        <label>
+          Archivo
+          <input id="filePath" value="./libros/hp3.html" />
+        </label>
+
+        <label>
+          Parte 1: palabras
           <input id="part1Words" type="number" min="1" max="40" value="2" />
         </label>
 
         <label>
-          Part 2: words
+          Parte 2: palabras
           <input id="part2Words" type="number" min="0" max="80" value="4" />
         </label>
 
         <label>
-          Part 3: lines
+          Parte 3: líneas
           <input id="part3Lines" type="number" min="0" max="40" value="3" />
         </label>
 
         <label>
-          Part 3: words/line
+          Parte 3: palabras/línea
           <input id="part3Words" type="number" min="1" max="40" value="1" />
         </label>
 
         <label>
-          Font size
+          Tamaño de letra
           <input id="fontSize" type="number" min="12" max="72" value="24" />
         </label>
 
         <label>
-          Synesthesia
+          Sinestesia
           <select id="synesthesiaMode">
             <option value="off" selected>Off</option>
             <option value="on">On</option>
           </select>
         </label>
 
+        <button id="applyFormatBtn">Aplicar formato</button>
+
         <label>
-          Page width
+          Ancho de página
           <input id="bookWidth" type="number" min="320" max="1800" value="980" />
         </label>
 
-        <button id="loadBtn">Load / redraw</button>
+        <button id="loadBtn">Cargar / redibujar</button>
 
         <label>
-          Words per minute
+          Palabras/minuto
           <select id="wpm">
-         <option value="100">100</option>
+            <option value="100">100</option>
             <option value="150">150</option>
             <option value="200">200</option>
             <option value="250">250</option>
@@ -308,29 +377,50 @@
         <button id="playBtn">▶ Play</button>
 
         <label>
-          Smart scroll
+          Velocidad TTS español
+          <select id="ttsRate">
+          <option value="0.6">0.6x</option>
+            <option value="0.75">0.75x</option>
+            <option value="0.9">0.9x</option>
+            <option value="1" selected>1x</option>
+            <option value="1.15">1.15x</option>
+            <option value="1.25">1.25x</option>
+            <option value="1.5">1.5x</option>
+            <option value="1.75">1.75x</option>
+            <option value="2">2x</option>
+            <option value="2.5">2.5x</option>
+            <option value="3">3x</option>
+            <option value="3.5">3.5x</option>
+            <option value="3.99">4x</option>
+          </select>
+        </label>
+
+        <button id="playTtsBtn">▶ Play TTS</button>
+
+        <label>
+          Salto inteligente
           <select id="smartScrollMode">
-            <option value="screen" selected>By screen</option>
-            <option value="block">By block</option>
+            <option value="screen" selected>Por pantalla</option>
+            <option value="block">Por bloque</option>
           </select>
         </label>
 
         <label>
-          Break every
+          Pausa cada
           <select id="breakEvery">
-            <option value="0" selected>Off</option>
-            <option value="1">1 minute</option>
-            <option value="2">2 minutes</option>
-            <option value="3">3 minutes</option>
-            <option value="5">5 minutes</option>
-            <option value="10">10 minutes</option>
-            <option value="15">15 minutes</option>
-            <option value="20">20 minutes</option>
+            <option value="0" >Off</option>
+            <option value="1" selected>1 minuto</option>
+            <option value="2">2 minutos</option>
+            <option value="3">3 minutos</option>
+            <option value="5">5 minutos</option>
+            <option value="10">10 minutos</option>
+            <option value="15">15 minutos</option>
+            <option value="20">20 minutos</option>
           </select>
         </label>
 
         <label>
-          Break duration
+          Duración pausa
           <select id="breakDuration">
             <option value="10" selected>10s</option>
             <option value="20">20s</option>
@@ -341,10 +431,35 @@
             <option value="120">120s</option>
           </select>
         </label>
+
+        <div class="progress-shell">
+          <div id="progressText" class="progress-text">Avance: 0.00%</div>
+          <div class="progress-track" aria-label="Porcentaje de avance">
+            <div id="progressBar" class="progress-bar"></div>
+          </div>
+        </div>
+
+        <div class="bookmark-tools">
+          <label>
+            Nombre bookmark
+            <input id="bookmarkName" placeholder="Ej: capítulo raro" />
+          </label>
+
+          <label>
+            Bookmarks
+            <select id="bookmarkSelect">
+              <option value="">Sin bookmarks</option>
+            </select>
+          </label>
+
+          <button id="saveBookmarkBtn">★ Guardar</button>
+          <button id="goBookmarkBtn">Ir</button>
+          <button id="deleteBookmarkBtn">Borrar</button>
+        </div>
       </div>
     </header>
 
-    <div id="pausePill" class="pause-pill">Break</div>
+    <div id="pausePill" class="pause-pill">Pausa</div>
 
     <div id="floatingPanel" class="floating-panel">
       <span id="floatingStats" class="floating-stats">0/0 · --</span>
@@ -352,13 +467,17 @@
     </div>
 
     <main>
-      <div id="status" class="status">Ready to load.</div>
+      <div id="status" class="status">Listo para cargar.</div>
       <div id="book" class="book"></div>
     </main>
   </div>
 
   <script>
     const els = {
+      uiLang: document.querySelector('#uiLang'),
+      bookSelect: document.querySelector('#bookSelect'),
+      newBookName: document.querySelector('#newBookName'),
+      addBookBtn: document.querySelector('#addBookBtn'),
       filePath: document.querySelector('#filePath'),
       part1Words: document.querySelector('#part1Words'),
       part2Words: document.querySelector('#part2Words'),
@@ -366,9 +485,12 @@
       part3Words: document.querySelector('#part3Words'),
       fontSize: document.querySelector('#fontSize'),
       synesthesiaMode: document.querySelector('#synesthesiaMode'),
+      applyFormatBtn: document.querySelector('#applyFormatBtn'),
       bookWidth: document.querySelector('#bookWidth'),
       loadBtn: document.querySelector('#loadBtn'),
       playBtn: document.querySelector('#playBtn'),
+      ttsRate: document.querySelector('#ttsRate'),
+      playTtsBtn: document.querySelector('#playTtsBtn'),
       floatingPanel: document.querySelector('#floatingPanel'),
       floatingStats: document.querySelector('#floatingStats'),
       floatingStopBtn: document.querySelector('#floatingStopBtn'),
@@ -377,6 +499,13 @@
       smartScrollMode: document.querySelector('#smartScrollMode'),
       breakEvery: document.querySelector('#breakEvery'),
       breakDuration: document.querySelector('#breakDuration'),
+      progressText: document.querySelector('#progressText'),
+      progressBar: document.querySelector('#progressBar'),
+      bookmarkName: document.querySelector('#bookmarkName'),
+      bookmarkSelect: document.querySelector('#bookmarkSelect'),
+      saveBookmarkBtn: document.querySelector('#saveBookmarkBtn'),
+      goBookmarkBtn: document.querySelector('#goBookmarkBtn'),
+      deleteBookmarkBtn: document.querySelector('#deleteBookmarkBtn'),
       status: document.querySelector('#status'),
       book: document.querySelector('#book')
     };
@@ -389,6 +518,46 @@
     let isPlaying = false;
     let isOnBreak = false;
     let totalWordCount = 0;
+    let saveScrollTimer = null;
+    let cssApplyTimer = null;
+    let formatPending = false;
+    let isTtsPlaying = false;
+    let currentTtsUtterance = null;
+    let spanishVoice = null;
+    let currentLang = 'es';
+
+    const SETTINGS_KEY = 'lectorEscalonado.settings.v2';
+    const BOOKS_KEY = 'lectorEscalonado.books.v2';
+    const CUSTOM_BOOK_LIST_KEY = 'lectorEscalonado.customBookList.v1';
+
+    const DEFAULT_BOOK_NAMES = [
+      "0number.html",
+      "Haruki Murakami - Kafka en la Orilla.html",
+      "hp3resumen.html",
+      "La Torre Oscura I.html",
+      "aleph2.html",
+      "benedetti.html",
+      "el capital en el siglo xxi - piketty thomas.html",
+      "divergente.html",
+      "Homero.LaIliada1.html",
+      "The 4-Hour Body.html",
+      "Elsenordelosanillos.html",
+      "hp3e.html",
+      "hp3.html",
+      "HarukiMurakami.DeQueHAbloCuandoHabloDeCorrer.html",
+      "rand ayn - el manantial.html",
+      "Rayuela_libro.html",
+      "aleph.html",
+      "hp3resumenEn.html",
+      "hp3e2.html",
+      "01 - Harry Potter y la Piedra Filosofal.html",
+      "rae.html",
+      "poemas borges.html",
+      "hp3e3.html",
+      "boys dont cry.html",
+      "La conjura de los necios.html",
+      "William Gibson - Neuromante.html"
+    ];
 
     const abc1 = {
       'a': 'rgb(0,0,180)', 'A': 'rgb(0,0,180)', 'á': 'rgb(0,0,180)', 'Á': 'rgb(0,0,180)',
@@ -428,6 +597,615 @@
       '8': 'rgb(255,255,0)',
       '9': 'rgb(255,255,150)'
     };
+
+
+    const I18N = {
+      es: {
+        title: 'Lector escalonado',
+        language: 'Idioma',
+        book: 'Libro',
+        addBook: 'Agregar libro',
+        addBookPlaceholder: 'Ej: nuevo libro.html',
+        addBookBtn: '+ Libro',
+        file: 'Archivo',
+        part1Words: 'Parte 1: palabras',
+        part2Words: 'Parte 2: palabras',
+        part3Lines: 'Parte 3: líneas',
+        part3Words: 'Parte 3: palabras/línea',
+        fontSize: 'Tamaño de letra',
+        synesthesia: 'Sinestesia',
+        applyFormat: 'Aplicar formato',
+        applyFormatPending: 'Aplicar formato *',
+        bookWidth: 'Ancho de página',
+        loadBtn: 'Cargar / redibujar',
+        wpm: 'Palabras/minuto',
+        play: '▶ Play',
+        pauseBtn: '⏸ Pausa',
+        ttsRate: 'Velocidad TTS español',
+        playTts: '▶ Play TTS',
+        stopTts: '■ Stop TTS',
+        smartScroll: 'Salto inteligente',
+        screenMode: 'Por pantalla',
+        blockMode: 'Por bloque',
+        breakEvery: 'Pausa cada',
+        breakDuration: 'Duración pausa',
+        off: 'Off',
+        minute: 'minuto',
+        minutes: 'minutos',
+        bookmarkName: 'Nombre bookmark',
+        bookmarkNamePlaceholder: 'Ej: capítulo raro',
+        bookmarks: 'Bookmarks',
+        saveBookmark: '★ Guardar',
+        go: 'Ir',
+        delete: 'Borrar',
+        floatingStop: '■ Stop',
+        ready: 'Listo para cargar.',
+        progressZero: 'Avance: 0.00%',
+        progress: 'Avance: {percent} · palabra {current} de {total}',
+        currentSuffix: 'actual',
+        noBookmarks: 'Sin bookmarks',
+        bookmarkOption: '{name} · {percent}% · palabra {word}',
+        defaultBookmark: 'Marca {n}',
+        bookmarkSaved: 'bookmark guardado: {name}',
+        bookmarkDeleted: 'bookmark borrado',
+        cssApplied: 'CSS aplicado',
+        formatPendingExtra: 'formato pendiente',
+        loading: 'Cargando {path}...',
+        loadError: 'Error al cargar.',
+        fallbackTitle: 'No pude abrir el archivo.',
+        fallbackHelp1: 'Ojo: si abrís este HTML con doble click tipo',
+        fallbackHelp2: 'el navegador puede bloquear',
+        fallbackHelp3: 'Probalo con un servidor local:',
+        fallbackHelp4: 'Y después abrí:',
+        noReadableText: 'No encontré texto legible en el HTML.',
+        rendered: 'Renderizado: {blocks} bloques. Formato {p1} x {p2} x {p3}. Total: {total} palabras.',
+        progressStatus: 'Avance: {percent}%',
+        visibleStatus: 'Visible: {visible} palabras',
+        remaining: 'faltan {time}',
+        wordCount: '{current}/{total}',
+        ttsStatus: 'TTS {rate}x',
+        ttsUnsupported: 'Tu navegador no soporta TTS con speechSynthesis.',
+        pause: 'Pausa',
+        pauseCountdown: 'Pausa: {seconds}s',
+        pauseExtra: 'pausa {seconds}s',
+        pauseFloating: 'pausa',
+        pauseEnds: 'Termina pausa · vuelve en 2s',
+        pauseEndsExtra: 'termina pausa, vuelve en 2s',
+        nextJump: '{wpm} ppm | próximo salto {seconds}s',
+        wordsUnit: 'palabras'
+      },
+      en: {
+        title: 'Stepped Reader',
+        language: 'Language',
+        book: 'Book',
+        addBook: 'Add book',
+        addBookPlaceholder: 'Ex: new book.html',
+        addBookBtn: '+ Book',
+        file: 'File',
+        part1Words: 'Part 1: words',
+        part2Words: 'Part 2: words',
+        part3Lines: 'Part 3: lines',
+        part3Words: 'Part 3: words/line',
+        fontSize: 'Font size',
+        synesthesia: 'Synesthesia',
+        applyFormat: 'Apply format',
+        applyFormatPending: 'Apply format *',
+        bookWidth: 'Page width',
+        loadBtn: 'Load / redraw',
+        wpm: 'Words/minute',
+        play: '▶ Play',
+        pauseBtn: '⏸ Pause',
+        ttsRate: 'Spanish TTS speed',
+        playTts: '▶ Play TTS',
+        stopTts: '■ Stop TTS',
+        smartScroll: 'Smart jump',
+        screenMode: 'By screen',
+        blockMode: 'By block',
+        breakEvery: 'Break every',
+        breakDuration: 'Break duration',
+        off: 'Off',
+        minute: 'minute',
+        minutes: 'minutes',
+        bookmarkName: 'Bookmark name',
+        bookmarkNamePlaceholder: 'Ex: weird chapter',
+        bookmarks: 'Bookmarks',
+        saveBookmark: '★ Save',
+        go: 'Go',
+        delete: 'Delete',
+        floatingStop: '■ Stop',
+        ready: 'Ready to load.',
+        progressZero: 'Progress: 0.00%',
+        progress: 'Progress: {percent} · word {current} of {total}',
+        currentSuffix: 'current',
+        noBookmarks: 'No bookmarks',
+        bookmarkOption: '{name} · {percent}% · word {word}',
+        defaultBookmark: 'Bookmark {n}',
+        bookmarkSaved: 'bookmark saved: {name}',
+        bookmarkDeleted: 'bookmark deleted',
+        cssApplied: 'CSS applied',
+        formatPendingExtra: 'format pending',
+        loading: 'Loading {path}...',
+        loadError: 'Load error.',
+        fallbackTitle: 'I could not open the file.',
+        fallbackHelp1: 'Note: if you open this HTML by double-clicking it as',
+        fallbackHelp2: 'the browser may block',
+        fallbackHelp3: 'Try it with a local server:',
+        fallbackHelp4: 'Then open:',
+        noReadableText: 'I could not find readable text in the HTML.',
+        rendered: 'Rendered: {blocks} blocks. Format {p1} x {p2} x {p3}. Total: {total} words.',
+        progressStatus: 'Progress: {percent}%',
+        visibleStatus: 'Visible: {visible} words',
+        remaining: '{time} left',
+        wordCount: '{current}/{total}',
+        ttsStatus: 'TTS {rate}x',
+        ttsUnsupported: 'Your browser does not support TTS with speechSynthesis.',
+        pause: 'Break',
+        pauseCountdown: 'Break: {seconds}s',
+        pauseExtra: 'break {seconds}s',
+        pauseFloating: 'break',
+        pauseEnds: 'Break ends · resumes in 2s',
+        pauseEndsExtra: 'break ends, resumes in 2s',
+        nextJump: '{wpm} wpm | next jump {seconds}s',
+        wordsUnit: 'words'
+      }
+    };
+
+    function t(key, vars = {}) {
+      const dict = I18N[currentLang] || I18N.es;
+      let text = dict[key] || I18N.es[key] || key;
+      for (const [name, value] of Object.entries(vars)) {
+        text = text.replaceAll('{' + name + '}', String(value));
+      }
+      return text;
+    }
+
+    function localeCode() {
+      return currentLang === 'en' ? 'en-US' : 'es-AR';
+    }
+
+    function nf(value) {
+      return Number(value || 0).toLocaleString(localeCode());
+    }
+
+    function setLabel(inputId, key) {
+      const label = els[inputId]?.closest('label');
+      if (!label) return;
+
+      for (const node of label.childNodes) {
+        if (node.nodeType === Node.TEXT_NODE && node.textContent.trim()) {
+          node.textContent = '\n          ' + t(key) + '\n          ';
+          return;
+        }
+      }
+    }
+
+    function setButton(id, key) {
+      if (els[id]) els[id].textContent = t(key);
+    }
+
+    function setOptionText(select, value, text) {
+      const option = select?.querySelector(`option[value="${value}"]`);
+      if (option) option.textContent = text;
+    }
+
+    function updateBreakOptionsLanguage() {
+      setOptionText(els.breakEvery, '0', t('off'));
+      for (const option of els.breakEvery.options) {
+        const n = Number(option.value);
+        if (n > 0) option.textContent = n + ' ' + (n === 1 ? t('minute') : t('minutes'));
+      }
+    }
+
+    function updateDynamicButtonTexts() {
+      els.playBtn.textContent = isPlaying ? t('pauseBtn') : t('play');
+      els.playTtsBtn.textContent = isTtsPlaying ? t('stopTts') : t('playTts');
+      els.applyFormatBtn.textContent = formatPending ? t('applyFormatPending') : t('applyFormat');
+      els.floatingStopBtn.textContent = t('floatingStop');
+    }
+
+    function applyLanguage() {
+      currentLang = els.uiLang?.value || 'es';
+      document.documentElement.lang = currentLang;
+      document.title = t('title');
+
+      setLabel('uiLang', 'language');
+      setLabel('bookSelect', 'book');
+      setLabel('newBookName', 'addBook');
+      setLabel('filePath', 'file');
+      setLabel('part1Words', 'part1Words');
+      setLabel('part2Words', 'part2Words');
+      setLabel('part3Lines', 'part3Lines');
+      setLabel('part3Words', 'part3Words');
+      setLabel('fontSize', 'fontSize');
+      setLabel('synesthesiaMode', 'synesthesia');
+      setLabel('bookWidth', 'bookWidth');
+      setLabel('wpm', 'wpm');
+      setLabel('ttsRate', 'ttsRate');
+      setLabel('smartScrollMode', 'smartScroll');
+      setLabel('breakEvery', 'breakEvery');
+      setLabel('breakDuration', 'breakDuration');
+      setLabel('bookmarkName', 'bookmarkName');
+      setLabel('bookmarkSelect', 'bookmarks');
+
+      els.newBookName.placeholder = t('addBookPlaceholder');
+      els.bookmarkName.placeholder = t('bookmarkNamePlaceholder');
+
+      setButton('addBookBtn', 'addBookBtn');
+      setButton('loadBtn', 'loadBtn');
+      setButton('saveBookmarkBtn', 'saveBookmark');
+      setButton('goBookmarkBtn', 'go');
+      setButton('deleteBookmarkBtn', 'delete');
+
+      updateDynamicButtonTexts();
+
+      setOptionText(els.synesthesiaMode, 'off', t('off'));
+      setOptionText(els.synesthesiaMode, 'on', currentLang === 'en' ? 'On' : 'On');
+      setOptionText(els.smartScrollMode, 'screen', t('screenMode'));
+      setOptionText(els.smartScrollMode, 'block', t('blockMode'));
+      updateBreakOptionsLanguage();
+
+      if (!originalUnits.length) {
+        els.status.textContent = t('ready');
+        els.progressText.textContent = t('progressZero');
+      }
+
+      renderBookList();
+      renderBookmarks();
+      updateProgressUi();
+      updateFloatingStats();
+    }
+
+
+    function safeJsonParse(value, fallback) {
+      try { return value ? JSON.parse(value) : fallback; }
+      catch (err) { return fallback; }
+    }
+
+    function debounceTimer(timerName, callback, delay = 500) {
+      clearTimeout(window[timerName]);
+      window[timerName] = setTimeout(callback, delay);
+    }
+
+    function applyCssOnly() {
+      const cfg = getConfig();
+      document.documentElement.style.setProperty('--font-size', cfg.fontSize + 'px');
+      document.documentElement.style.setProperty('--book-width', cfg.bookWidth + 'px');
+      saveSettings();
+      updateVisibleWordStatus(' | ' + t('cssApplied'));
+
+      if (isPlaying && !isOnBreak) scheduleNextAutoScroll();
+    }
+
+    function scheduleCssOnlyApply() {
+      clearTimeout(cssApplyTimer);
+      cssApplyTimer = setTimeout(applyCssOnly, 500);
+    }
+
+    function markFormatPending() {
+      formatPending = true;
+      saveSettings();
+      els.applyFormatBtn.textContent = t('applyFormatPending');
+      updateVisibleWordStatus(' | ' + t('formatPendingExtra'));
+    }
+
+    function applyFormatChanges() {
+      if (!originalUnits.length) {
+        saveSettings();
+        return;
+      }
+
+      saveReadingPositionNow();
+      renderUnits(originalUnits);
+      restoreReadingPosition();
+
+      formatPending = false;
+      els.applyFormatBtn.textContent = t('applyFormat');
+    }
+
+    function cleanBookName(value) {
+      return String(value || '')
+        .trim()
+        .replace(/^\.\/libros\//i, '')
+        .replace(/^libros\//i, '');
+    }
+
+    function toBookPath(value) {
+      const raw = String(value || '').trim();
+      if (!raw) return './libros/hp3.html';
+      if (/^(https?:|file:|\/|\.\/|\.\.\/)/i.test(raw)) return raw;
+      if (/^libros\//i.test(raw)) return './' + raw;
+      return './libros/' + raw;
+    }
+
+    function readCustomBookNames() {
+      return safeJsonParse(localStorage.getItem(CUSTOM_BOOK_LIST_KEY), []);
+    }
+
+    function writeCustomBookNames(names) {
+      localStorage.setItem(CUSTOM_BOOK_LIST_KEY, JSON.stringify(names));
+    }
+
+    function getAllBookNames() {
+      const seen = new Set();
+      const names = [];
+
+      for (const name of [...DEFAULT_BOOK_NAMES, ...readCustomBookNames()]) {
+        const clean = cleanBookName(name);
+        if (!clean) continue;
+
+        const key = clean.toLowerCase();
+        if (seen.has(key)) continue;
+
+        seen.add(key);
+        names.push(clean);
+      }
+
+      return names;
+    }
+
+    function renderBookList() {
+      const currentPath = toBookPath(els.filePath.value);
+      const currentName = cleanBookName(currentPath);
+      const names = getAllBookNames();
+
+      els.bookSelect.innerHTML = '';
+
+      let hasCurrent = false;
+
+      for (const name of names) {
+        const path = toBookPath(name);
+        const opt = document.createElement('option');
+        opt.value = path;
+        opt.textContent = name;
+
+        if (path.toLowerCase() === currentPath.toLowerCase()) {
+          opt.selected = true;
+          hasCurrent = true;
+        }
+
+        els.bookSelect.appendChild(opt);
+      }
+
+      if (!hasCurrent && currentName) {
+        const opt = document.createElement('option');
+        opt.value = currentPath;
+        opt.textContent = currentName + ' (' + t('currentSuffix') + ')';
+        opt.selected = true;
+        els.bookSelect.appendChild(opt);
+      }
+    }
+
+    function addBookFromInput() {
+      const name = cleanBookName(els.newBookName.value);
+      if (!name) return;
+
+      const custom = readCustomBookNames();
+      const exists = [...DEFAULT_BOOK_NAMES, ...custom]
+        .some(item => cleanBookName(item).toLowerCase() === name.toLowerCase());
+
+      if (!exists) {
+        custom.push(name);
+        writeCustomBookNames(custom);
+      }
+
+      els.newBookName.value = '';
+      els.filePath.value = toBookPath(name);
+      renderBookList();
+      saveSettings();
+      loadBook();
+    }
+
+    function getBookKey() {
+      return (els.filePath.value.trim() || './libros/hp3.html').toLowerCase();
+    }
+
+    function readSettings() {
+      return safeJsonParse(localStorage.getItem(SETTINGS_KEY), {});
+    }
+
+    function writeSettings(settings) {
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+    }
+
+    function readBooksState() {
+      return safeJsonParse(localStorage.getItem(BOOKS_KEY), {});
+    }
+
+    function writeBooksState(state) {
+      localStorage.setItem(BOOKS_KEY, JSON.stringify(state));
+    }
+
+    function getCurrentBookState() {
+      const all = readBooksState();
+      return all[getBookKey()] || { scrollY: 0, currentWord: 1, bookmarks: [] };
+    }
+
+    function saveCurrentBookState(partial) {
+      const key = getBookKey();
+      const all = readBooksState();
+      const prev = all[key] || { scrollY: 0, currentWord: 1, bookmarks: [] };
+      all[key] = { ...prev, ...partial, updatedAt: new Date().toISOString() };
+      writeBooksState(all);
+    }
+
+    function saveSettings() {
+      writeSettings({
+        uiLang: els.uiLang.value,
+        filePath: els.filePath.value,
+        part1Words: els.part1Words.value,
+        part2Words: els.part2Words.value,
+        part3Lines: els.part3Lines.value,
+        part3Words: els.part3Words.value,
+        fontSize: els.fontSize.value,
+        synesthesiaMode: els.synesthesiaMode.value,
+        bookWidth: els.bookWidth.value,
+        wpm: els.wpm.value,
+        ttsRate: els.ttsRate.value,
+        smartScrollMode: els.smartScrollMode.value,
+        breakEvery: els.breakEvery.value,
+        breakDuration: els.breakDuration.value
+      });
+    }
+
+    function loadSettings() {
+      const settings = readSettings();
+
+      for (const [key, value] of Object.entries(settings)) {
+        if (els[key] && value !== undefined && value !== null) {
+          els[key].value = value;
+        }
+      }
+
+      els.filePath.value = toBookPath(els.filePath.value);
+      renderBookList();
+    }
+
+    function getProgressData() {
+      if (!totalWordCount) {
+        return { currentWord: 0, percent: 0, remainingWords: 0 };
+      }
+
+      const currentWord = Math.min(Math.max(1, getCurrentWordPosition()), totalWordCount);
+      const readWords = Math.max(0, currentWord - 1);
+      const percent = Math.min(100, Math.max(0, (readWords / totalWordCount) * 100));
+      const remainingWords = Math.max(0, totalWordCount - currentWord + 1);
+
+      return { currentWord, percent, remainingWords };
+    }
+
+    function updateProgressUi() {
+      const { currentWord, percent } = getProgressData();
+      const percentText = percent.toFixed(2) + '%';
+
+      els.progressBar.style.width = percentText;
+      els.progressText.textContent =
+        t('progress', { percent: percentText, current: nf(currentWord), total: nf(totalWordCount) });
+    }
+
+    function saveReadingPositionNow() {
+      if (!originalUnits.length || !totalWordCount) return;
+
+      const { currentWord, percent } = getProgressData();
+
+      saveCurrentBookState({
+        scrollY: window.scrollY,
+        currentWord,
+        percent: Number(percent.toFixed(3))
+      });
+    }
+
+    function scheduleSaveReadingPosition() {
+      clearTimeout(saveScrollTimer);
+      saveScrollTimer = setTimeout(saveReadingPositionNow, 250);
+    }
+
+    function scrollToWord(word, behavior = 'auto') {
+      const blocks = Array.from(document.querySelectorAll('.block'));
+      if (!blocks.length) return false;
+
+      const targetWord = Math.max(1, Number(word) || 1);
+      let target = blocks.find(block => {
+        const start = Number(block.dataset.startWord || 1);
+        const end = Number(block.dataset.endWord || start);
+        return start <= targetWord && end >= targetWord;
+      });
+
+      target = target || blocks.find(block => Number(block.dataset.startWord || 1) >= targetWord) || blocks[blocks.length - 1];
+
+      const headerHeight = document.body.classList.contains('reading-mode')
+        ? 0
+        : document.querySelector('header').offsetHeight;
+
+      const y = target.getBoundingClientRect().top + window.scrollY - headerHeight - 18;
+      window.scrollTo({ top: Math.max(0, y), behavior });
+      return true;
+    }
+
+    function restoreReadingPosition() {
+      const state = getCurrentBookState();
+      const word = Number(state.currentWord || 1);
+      const y = Number(state.scrollY || 0);
+
+      requestAnimationFrame(() => {
+        const restoredByWord = word > 1 && scrollToWord(word, 'auto');
+        if (!restoredByWord && y > 0) window.scrollTo({ top: y, behavior: 'auto' });
+        updateVisibleWordStatus('');
+      });
+    }
+
+    function renderBookmarks() {
+      const state = getCurrentBookState();
+      const bookmarks = Array.isArray(state.bookmarks) ? state.bookmarks : [];
+
+      els.bookmarkSelect.innerHTML = '';
+
+      if (!bookmarks.length) {
+        const opt = document.createElement('option');
+        opt.value = '';
+        opt.textContent = t('noBookmarks');
+        els.bookmarkSelect.appendChild(opt);
+        return;
+      }
+
+      for (const mark of bookmarks) {
+        const opt = document.createElement('option');
+        opt.value = mark.id;
+        const pct = Number(mark.percent || 0).toFixed(2);
+        opt.textContent = t('bookmarkOption', { name: mark.name, percent: pct, word: nf(mark.word || 1) });
+        els.bookmarkSelect.appendChild(opt);
+      }
+    }
+
+    function saveBookmark() {
+      if (!originalUnits.length || !totalWordCount) return;
+
+      const state = getCurrentBookState();
+      const bookmarks = Array.isArray(state.bookmarks) ? state.bookmarks : [];
+      const { currentWord, percent } = getProgressData();
+      const fallbackName = t('defaultBookmark', { n: bookmarks.length + 1 });
+      const name = (els.bookmarkName.value.trim() || fallbackName).slice(0, 80);
+
+      const mark = {
+        id: String(Date.now()),
+        name,
+        word: currentWord,
+        percent: Number(percent.toFixed(3)),
+        scrollY: window.scrollY,
+        createdAt: new Date().toISOString()
+      };
+
+      bookmarks.push(mark);
+      saveCurrentBookState({ bookmarks, scrollY: window.scrollY, currentWord, percent: mark.percent });
+      els.bookmarkName.value = '';
+      renderBookmarks();
+      els.bookmarkSelect.value = mark.id;
+      updateVisibleWordStatus(' | ' + t('bookmarkSaved', { name }));
+    }
+
+    function goToSelectedBookmark() {
+      const id = els.bookmarkSelect.value;
+      if (!id) return;
+
+      const state = getCurrentBookState();
+      const mark = (state.bookmarks || []).find(b => b.id === id);
+      if (!mark) return;
+
+      stopAutoScroll();
+      if (!scrollToWord(mark.word, 'smooth')) {
+        window.scrollTo({ top: Number(mark.scrollY || 0), behavior: 'smooth' });
+      }
+    }
+
+    function deleteSelectedBookmark() {
+      const id = els.bookmarkSelect.value;
+      if (!id) return;
+
+      const state = getCurrentBookState();
+      const bookmarks = (state.bookmarks || []).filter(b => b.id !== id);
+      saveCurrentBookState({ bookmarks });
+      renderBookmarks();
+      updateVisibleWordStatus(' | ' + t('bookmarkDeleted'));
+    }
 
     function normalizeText(text) {
       return text
@@ -579,31 +1357,31 @@
     }
 
     function updateFloatingStats() {
-      const currentWord = Math.min(Math.max(1, getCurrentWordPosition()), Math.max(1, totalWordCount));
+      const { currentWord, percent, remainingWords } = getProgressData();
       const wpm = Math.max(1, Number(els.wpm.value) || 350);
-      const remainingWords = Math.max(0, totalWordCount - currentWord + 1);
       const timeLeft = formatTimeLeft(remainingWords / wpm);
 
       let extra = '';
 
       if (isOnBreak) {
-        extra = ' · break';
+        extra = ' · ' + t('pauseFloating');
       }
 
       els.floatingStats.textContent =
-        `${currentWord.toLocaleString('en-US')}/${totalWordCount.toLocaleString('en-US')} · ${timeLeft} left${extra}`;
+        `${percent.toFixed(1)}% · ${nf(currentWord)}/${nf(totalWordCount)} · ${t('remaining', { time: timeLeft })}${extra}`;
+
+      updateProgressUi();
     }
 
     function updateVisibleWordStatus(extra = '') {
       const visibleWords = countVisibleWords();
-      const currentWord = Math.min(Math.max(1, getCurrentWordPosition()), Math.max(1, totalWordCount));
+      const { currentWord, percent, remainingWords } = getProgressData();
       const wpm = Math.max(1, Number(els.wpm.value) || 350);
-      const remainingWords = Math.max(0, totalWordCount - currentWord + 1);
       const timeLeft = formatTimeLeft(remainingWords / wpm);
-      const base = els.status.textContent.replace(/ \| Visible:.*$/, '');
+      const base = els.status.textContent.split(' | ')[0];
 
       els.status.textContent =
-        `${base} | Visible: ${visibleWords} words | ${currentWord.toLocaleString('en-US')}/${totalWordCount.toLocaleString('en-US')} | ${timeLeft} left${extra}`;
+        `${base} | ${t('progressStatus', { percent: percent.toFixed(2) })} | ${t('visibleStatus', { visible: visibleWords })} | ${t('wordCount', { current: nf(currentWord), total: nf(totalWordCount) })} | ${t('remaining', { time: timeLeft })}${extra}`;
 
       updateFloatingStats();
 
@@ -735,7 +1513,7 @@
         osc.start();
         osc.stop(ctx.currentTime + duration / 1000 + 0.03);
       } catch (err) {
-        console.log('Could not play alarm:', err);
+        console.log('No pude reproducir alarma:', err);
       }
     }
 
@@ -751,7 +1529,7 @@
 
     function hidePausePill() {
       els.pausePill.classList.remove('show');
-      els.pausePill.textContent = 'Break';
+      els.pausePill.textContent = t('pause');
     }
 
     function showPausePill(text) {
@@ -786,8 +1564,8 @@
       let remaining = pauseSeconds;
 
       beep(520, 220);
-      showPausePill(`Break: ${remaining}s`);
-      updateVisibleWordStatus(` | break ${remaining}s`);
+      showPausePill(t('pauseCountdown', { seconds: remaining }));
+      updateVisibleWordStatus(' | ' + t('pauseExtra', { seconds: remaining }));
 
       clearInterval(breakCountdownTimer);
 
@@ -800,8 +1578,8 @@
         remaining--;
 
         if (remaining > 0) {
-          showPausePill(`Break: ${remaining}s`);
-          updateVisibleWordStatus(` | break ${remaining}s`);
+          showPausePill(t('pauseCountdown', { seconds: remaining }));
+          updateVisibleWordStatus(' | ' + t('pauseExtra', { seconds: remaining }));
         }
       }, 1000);
 
@@ -812,8 +1590,8 @@
         breakCountdownTimer = null;
 
         beep(980, 220);
-        showPausePill('Break over · resumes in 2s');
-        updateVisibleWordStatus(' | break over, resumes in 2s');
+        showPausePill(t('pauseEnds'));
+        updateVisibleWordStatus(' | ' + t('pauseEndsExtra'));
 
         setTimeout(() => {
           if (!isPlaying) return;
@@ -828,7 +1606,137 @@
       }, pauseSeconds * 1000);
     }
 
+    function loadSpanishVoice() {
+      if (!('speechSynthesis' in window)) return;
+
+      const voices = speechSynthesis.getVoices();
+
+      spanishVoice =
+        voices.find(v => /^es-AR/i.test(v.lang)) ||
+        voices.find(v => /^es-ES/i.test(v.lang)) ||
+        voices.find(v => /^es/i.test(v.lang)) ||
+        null;
+    }
+
+    if ('speechSynthesis' in window) {
+      loadSpanishVoice();
+      speechSynthesis.onvoiceschanged = loadSpanishVoice;
+    }
+
+    function getVisibleTextForTts() {
+      const blocks = getVisibleBlocks();
+
+      return blocks
+        .map(block => block.innerText || block.textContent || '')
+        .join(' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+    }
+
+    function isAtBottom() {
+      return window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 12;
+    }
+
+    function stopTts() {
+      isTtsPlaying = false;
+      currentTtsUtterance = null;
+
+      if ('speechSynthesis' in window) {
+        speechSynthesis.cancel();
+      }
+
+      els.playTtsBtn.textContent = t('playTts');
+
+      if (!isPlaying) {
+        document.body.classList.remove('reading-mode');
+      }
+
+      updateVisibleWordStatus('');
+    }
+
+    function speakCurrentVisiblePage() {
+      if (!isTtsPlaying) return;
+
+      if (!('speechSynthesis' in window)) {
+        alert(t('ttsUnsupported'));
+        stopTts();
+        return;
+      }
+
+      const text = getVisibleTextForTts();
+
+      if (!text) {
+        stopTts();
+        return;
+      }
+
+      speechSynthesis.cancel();
+
+      const utterance = new SpeechSynthesisUtterance(text);
+      currentTtsUtterance = utterance;
+
+      utterance.lang = 'es-AR';
+      utterance.rate = Math.max(0.5, Math.min(2, Number(els.ttsRate.value) || 1));
+      utterance.pitch = 1;
+      utterance.volume = 1;
+
+      if (spanishVoice) utterance.voice = spanishVoice;
+
+      utterance.onstart = () => {
+        updateVisibleWordStatus(' | ' + t('ttsStatus', { rate: utterance.rate }));
+      };
+
+      utterance.onerror = () => {
+        stopTts();
+      };
+
+      utterance.onend = () => {
+        if (!isTtsPlaying) return;
+
+        saveReadingPositionNow();
+
+        if (isAtBottom()) {
+          stopTts();
+          return;
+        }
+
+        smartScroll(1);
+
+        waitForScrollSettle(() => {
+          if (!isTtsPlaying) return;
+
+          setTimeout(() => {
+            if (!isTtsPlaying) return;
+            speakCurrentVisiblePage();
+          }, 250);
+        });
+      };
+
+      speechSynthesis.speak(utterance);
+    }
+
+    function toggleTts() {
+      if (isTtsPlaying) {
+        stopTts();
+        return;
+      }
+
+      stopAutoScroll();
+
+      isTtsPlaying = true;
+      document.body.classList.add('reading-mode');
+      els.playTtsBtn.textContent = t('stopTts');
+
+      speakCurrentVisiblePage();
+    }
+
     function stopAutoScroll() {
+      if (isTtsPlaying) {
+        isTtsPlaying = false;
+        if ('speechSynthesis' in window) speechSynthesis.cancel();
+        els.playTtsBtn.textContent = t('playTts');
+      }
+
       isPlaying = false;
       isOnBreak = false;
 
@@ -839,7 +1747,8 @@
       hidePausePill();
 
       document.body.classList.remove('reading-mode');
-      els.playBtn.textContent = '▶ Play';
+      els.playBtn.textContent = t('play');
+      renderBookmarks();
       updateVisibleWordStatus('');
     }
 
@@ -869,7 +1778,7 @@
       const visibleWords = Math.max(1, countVisibleWords());
       const delayMs = Math.max(450, (visibleWords / wpm) * 60000);
 
-      updateVisibleWordStatus(` | ${wpm} wpm | next jump in ${(delayMs / 1000).toFixed(1)}s`);
+      updateVisibleWordStatus(' | ' + t('nextJump', { wpm, seconds: (delayMs / 1000).toFixed(1) }));
 
       clearTimeout(autoScrollTimer);
 
@@ -895,7 +1804,7 @@
       isOnBreak = false;
 
       document.body.classList.add('reading-mode');
-      els.playBtn.textContent = '⏸ Pause';
+      els.playBtn.textContent = t('pauseBtn');
 
       scheduleNextAutoScroll();
       scheduleBreakTimer();
@@ -1006,17 +1915,24 @@
       els.book.appendChild(fragment);
 
       els.status.textContent =
-        `Rendered: ${blockCount.toLocaleString('en-US')} blocks. Format ${cfg.part1Words} x ${cfg.part2Words} x ${cfg.part3Lines}. Total: ${totalWordCount.toLocaleString('en-US')} words.`;
+        t('rendered', { blocks: nf(blockCount), p1: cfg.part1Words, p2: cfg.part2Words, p3: cfg.part3Lines, total: nf(totalWordCount) });
 
+      renderBookmarks();
       updateVisibleWordStatus('');
+
+      formatPending = false;
+      if (els.applyFormatBtn) els.applyFormatBtn.textContent = t('applyFormat');
     }
 
     async function loadBook() {
       stopAutoScroll();
 
-      const path = els.filePath.value.trim() || './libros/hp3.html';
+      const path = toBookPath(els.filePath.value);
+      els.filePath.value = path;
+      renderBookList();
+      saveSettings();
 
-      els.status.textContent = 'Loading ' + path + '...';
+      els.status.textContent = t('loading', { path });
       els.book.innerHTML = '';
 
       try {
@@ -1030,39 +1946,75 @@
         originalUnits = splitIntoUnits(text);
 
         if (!originalUnits.some(u => u.type === 'word')) {
-          throw new Error('No readable text was found in the HTML.');
+          throw new Error(t('noReadableText'));
         }
 
         renderUnits(originalUnits);
+        restoreReadingPosition();
       } catch (err) {
-        els.status.textContent = 'Loading error.';
+        els.status.textContent = t('loadError');
 
         els.book.innerHTML = `
           <div class="fallback">
-            <p><b>Could not open the file.</b></p>
+            <p><b>${t('fallbackTitle')}</b></p>
             <p>${String(err.message || err)}</p>
-            <p>Note: if you open this HTML by double-clicking it as a <code>file://</code> page, the browser may block <code>fetch()</code>. Try running a local server:</p>
+            <p>${t('fallbackHelp1')} <code>file://</code>, ${t('fallbackHelp2')} <code>fetch()</code>. ${t('fallbackHelp3')}</p>
             <pre>python3 -m http.server 8000</pre>
-            <p>Then open: <code>http://localhost:8000/</code></p>
+            <p>${t('fallbackHelp4')} <code>http://localhost:8000/</code></p>
           </div>
         `;
       }
     }
 
+    els.uiLang.addEventListener('change', () => {
+      applyLanguage();
+      saveSettings();
+      if (originalUnits.length) updateVisibleWordStatus('');
+    });
+
     els.loadBtn.addEventListener('click', loadBook);
+    els.applyFormatBtn.addEventListener('click', applyFormatChanges);
+    els.bookSelect.addEventListener('change', () => {
+      els.filePath.value = els.bookSelect.value;
+      saveSettings();
+      loadBook();
+    });
+    els.addBookBtn.addEventListener('click', addBookFromInput);
+    els.newBookName.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter') {
+        ev.preventDefault();
+        addBookFromInput();
+      }
+    });
     els.playBtn.addEventListener('click', toggleAutoScroll);
+    els.playTtsBtn.addEventListener('click', toggleTts);
     els.floatingStopBtn.addEventListener('click', stopAutoScroll);
+    els.saveBookmarkBtn.addEventListener('click', saveBookmark);
+    els.goBookmarkBtn.addEventListener('click', goToSelectedBookmark);
+    els.deleteBookmarkBtn.addEventListener('click', deleteSelectedBookmark);
 
     els.wpm.addEventListener('change', () => {
+      saveSettings();
       if (isPlaying && !isOnBreak) scheduleNextAutoScroll();
       else updateVisibleWordStatus('');
     });
 
+    els.ttsRate.addEventListener('change', () => {
+      saveSettings();
+
+      if (isTtsPlaying) {
+        speechSynthesis.cancel();
+        speakCurrentVisiblePage();
+      }
+    });
+
     els.breakEvery.addEventListener('change', () => {
+      saveSettings();
       if (isPlaying) scheduleBreakTimer();
     });
 
     els.breakDuration.addEventListener('change', () => {
+      saveSettings();
       if (!isPlaying) updateVisibleWordStatus('');
     });
 
@@ -1073,9 +2025,15 @@
 
     window.addEventListener('scroll', () => {
       updateFloatingStats();
+      scheduleSaveReadingPosition();
 
       if (!isPlaying) updateVisibleWordStatus('');
     }, { passive: true });
+
+    window.addEventListener('beforeunload', () => {
+      saveSettings();
+      saveReadingPositionNow();
+    });
 
     window.addEventListener('keydown', (ev) => {
       const tag = document.activeElement?.tagName?.toLowerCase();
@@ -1106,15 +2064,28 @@
       els.part2Words,
       els.part3Lines,
       els.part3Words,
-      els.fontSize,
-      els.bookWidth,
       els.synesthesiaMode
     ]) {
-      input.addEventListener('input', () => {
-        if (originalUnits.length) renderUnits(originalUnits);
-      });
+      input.addEventListener('input', markFormatPending);
+      input.addEventListener('change', markFormatPending);
     }
 
+    for (const input of [els.fontSize, els.bookWidth]) {
+      input.addEventListener('input', scheduleCssOnlyApply);
+      input.addEventListener('change', scheduleCssOnlyApply);
+    }
+
+    els.filePath.addEventListener('change', () => {
+      els.filePath.value = toBookPath(els.filePath.value);
+      renderBookList();
+      saveSettings();
+      loadBook();
+    });
+
+    els.smartScrollMode.addEventListener('change', saveSettings);
+
+    loadSettings();
+    applyLanguage();
     loadBook();
   </script>
 </body>
